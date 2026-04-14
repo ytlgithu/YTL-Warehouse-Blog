@@ -946,6 +946,7 @@ def init_db():
 
 if __name__ == '__main__':
     os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
-    os.makedirs(os.path.join(os.path.dirname(__file__), 'instance'), exist_ok=True)
+    os.makedirs(os.path.dirname(Config.SQLALCHEMY_DATABASE_URI.replace('sqlite:///', '')), exist_ok=True)
     init_db()
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)

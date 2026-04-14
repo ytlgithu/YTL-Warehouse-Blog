@@ -1,0 +1,10 @@
+[railway]
+name = "ytl-blog"
+builder = "nixpacks"
+builderVersion = "latest"
+
+[railway.variables]
+PORT = 8080
+
+[deployment]
+region = "singapore"
