@@ -224,7 +224,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 .nav-dropdown-toggle { cursor: pointer; }
 .nav-dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 160px; z-index: 100; overflow: hidden; }
 .nav-dropdown-menu a { display: block; padding: 8px 16px; color: #374151; text-decoration: none; font-size: 14px; white-space: nowrap; }
-.nav-dropdown-menu a:hover { background: #f3f4f6; }
+.nav-dropdown-menu a:hover { background: #eff6ff; color: #1d4ed8; }
+.nav-dropdown-menu a:active { background: #3b82f6; color: #fff; }
 .nav-dropdown:hover .nav-dropdown-menu { display: block; }
 
 /* 表单下拉框美化 */
