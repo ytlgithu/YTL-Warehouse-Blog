@@ -3,18 +3,24 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
 
 /* Header */
-.header { background: #24292e; color: #fff; padding: 12px 0; position: sticky; top: 0; z-index: 100; }
-.header-inner { display: flex; justify-content: space-between; align-items: center; }
-.logo { font-size: 20px; font-weight: 700; color: #fff; text-decoration: none; }
-.nav { display: flex; gap: 16px; align-items: center; }
-.nav a { color: #ddd; text-decoration: none; font-size: 14px; }
-.nav a:hover { color: #fff; }
-.btn-sm { padding: 4px 12px; border-radius: 4px; font-size: 13px; }
-.btn-outline { background: transparent; border: 1px solid #666; color: #ddd; }
-.btn-outline:hover { background: #444; }
-.btn-primary { background: #0366d6; border-color: #0366d6; color: #fff; }
-.btn-logout { background: #555; padding: 4px 12px; border-radius: 4px; }
-.badge-admin { background: #f85149; padding: 2px 8px; border-radius: 3px; font-size: 12px; }
+.header { background: linear-gradient(135deg, #1a1d21 0%, #24292e 50%, #2d333b 100%); color: #fff; padding: 0; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 12px rgba(0,0,0,.25); border-bottom: 1px solid rgba(255,255,255,.06); }
+.header-inner { display: flex; justify-content: space-between; align-items: center; height: 58px; }
+.logo { font-size: 18px; font-weight: 800; color: #fff; text-decoration: none; letter-spacing: -0.3px; display: flex; align-items: center; gap: 8px; }
+.logo:hover { color: #58a6ff; }
+.nav { display: flex; gap: 2px; align-items: center; }
+.nav a { color: rgba(255,255,255,.75); text-decoration: none; font-size: 14px; padding: 6px 10px; border-radius: 6px; transition: background .15s, color .15s; }
+.nav a:hover { color: #fff; background: rgba(255,255,255,.1); }
+.nav a.active { color: #fff; background: rgba(255,255,255,.12); font-weight: 500; }
+.btn-sm { padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; transition: all .15s; }
+.btn-outline { background: transparent; border: 1px solid rgba(255,255,255,.25); color: #fff; }
+.btn-outline:hover { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.4); color: #fff; }
+.btn-outline:active { background: rgba(255,255,255,.2); }
+.btn-primary { background: #2ea44f; border-color: #2ea44f; color: #fff; }
+.btn-primary:hover { background: #2c974b; border-color: #2c974b; }
+.btn-logout { background: rgba(255,255,255,.08); padding: 6px 14px; border-radius: 6px; color: rgba(255,255,255,.7); font-size: 13px; transition: all .15s; }
+.btn-logout:hover { background: rgba(255,255,255,.15); color: #fff; }
+.badge-admin { background: #f85149; padding: 2px 8px; border-radius: 3px; font-size: 12px; font-weight: 600; }
+.badge-admin:hover { background: #da3633; }
 
 /* Main */
 .main { padding: 24px 0 48px; min-height: calc(100vh - 180px); }
@@ -221,13 +227,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 
 /* nav dropdown */
 .nav-dropdown { position: relative; display: inline-block; }
-.nav-dropdown-toggle { cursor: pointer; }
-.nav-dropdown-toggle:hover { color: #1d4ed8; }
-.nav-dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 160px; z-index: 100; overflow: hidden; }
-.nav-dropdown-menu a { display: block; padding: 8px 16px; color: #374151; text-decoration: none; font-size: 14px; white-space: nowrap; }
-.nav-dropdown-menu a:hover { background: #eff6ff; color: #1d4ed8; }
-.nav-dropdown-menu a:active { background: #3b82f6; color: #fff; }
+.nav-dropdown-toggle { cursor: pointer; padding: 6px 10px; border-radius: 6px; transition: background .15s, color .15s; }
+.nav-dropdown-toggle:hover { color: #fff; background: rgba(255,255,255,.1); }
+.nav-dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.15); min-width: 160px; z-index: 200; overflow: hidden; margin-top: 4px; }
 .nav-dropdown:hover .nav-dropdown-menu { display: block; }
+.nav-dropdown-menu a { display: flex; align-items: center; gap: 8px; padding: 9px 14px; color: #374151; text-decoration: none; font-size: 14px; white-space: nowrap; border-radius: 0; transition: background .12s, color .12s; }
+.nav-dropdown-menu a:hover { background: #f0f7ff; color: #1d4ed8; }
+.nav-dropdown-menu a:active { background: #3b82f6; color: #fff; }
 
 /* 表单下拉框美化 */
 .form-select, select.form-input {
