@@ -1,11 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-<title>💬 留言板</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+{% extends "base.html" %}
+{% block title %}💬 留言板{% endblock %}
+{% block extra_css %}
 <style>
 .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
 .msg-form { background:#fff; border-radius:12px; padding:20px; margin-bottom:28px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
@@ -18,15 +13,12 @@
 .msg-avatar { width:32px; height:32px; border-radius:50%; background:#3b82f6; color:#fff; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; }
 .msg-time { font-size:12px; color:#9ca3af; }
 .msg-content { color:#374151; line-height:1.7; font-size:15px; white-space:pre-wrap; word-break:break-word; }
-.msg-delete { margin-top:10px; }
 .empty-state { text-align:center; padding:48px 0; color:#9ca3af; }
 .empty-state p { margin-top:12px; font-size:15px; }
-.pagination { margin-top:24px; }
 </style>
-</head>
-<body>
-
-<div class="container main" style="max-width:760px; padding-top:32px;">
+{% endblock %}
+{% block content %}
+<div style="max-width:760px; margin:0 auto;">
 
   <div class="page-header">
     <h1>💬 留言板</h1>
@@ -60,7 +52,7 @@
           <span class="msg-time">{{ msg.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
           {% if cu and (cu.id == msg.user_id or cu.is_admin) %}
           <form method="POST" action="{{ url_for('delete_message', msg_id=msg.id) }}" onsubmit="return confirm('确定删除这条留言？')">
-            <button type="submit" class="btn-sm" style="background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; padding:3px 10px; border-radius:6px; cursor:pointer; font-size:12px;">删除</button>
+            <button type="submit" style="background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; padding:3px 10px; border-radius:6px; cursor:pointer; font-size:12px;">删除</button>
           </form>
           {% endif %}
         </div>
@@ -76,7 +68,7 @@
   </div>
 
   {% if pagination.pages > 1 %}
-  <div class="pagination" style="display:flex; gap:6px; justify-content:center; margin-top:32px;">
+  <div style="display:flex; gap:6px; justify-content:center; margin-top:32px;">
     {% if pagination.has_prev %}
     <a href="{{ url_for('message_board', page=pagination.prev_num) }}" class="btn-sm">← 上一页</a>
     {% endif %}
@@ -88,6 +80,4 @@
   {% endif %}
 
 </div>
-
-</body>
-</html>
+{% endblock %}
