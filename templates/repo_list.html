@@ -21,25 +21,10 @@
       <span>👤 {{ r.owner.username }}</span>
       <span>🕐 {{ r.updated_at.strftime('%Y-%m-%d') }}</span>
     </div>
-    {% if cu and (cu.id == r.user_id or cu.is_admin) %}
-    <div class="repo-actions">
-      <form method="POST" action="{{ url_for('repo_delete', repo_id=r.id) }}" onsubmit="return confirm('确定删除仓库【{{ r.name }}】？此操作不可恢复！')">
-        <button type="submit" class="btn-delete">🗑️ 删除</button>
-      </form>
-    </div>
-    {% endif %}
   </div>
   {% endfor %}
 </div>
 {% else %}
 <p class="empty-msg">暂无仓库</p>
 {% endif %}
-<style>
-.repo-actions { margin-top: 10px; }
-.btn-delete {
-  background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5;
-  padding: 4px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;
-}
-.btn-delete:hover { background: #fecaca; }
-</style>
 {% endblock %}
