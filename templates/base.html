@@ -24,19 +24,6 @@
         <a href="{{ url_for('repo_new') }}" class="nav-btn">+ 新建仓库</a>
         <a href="{{ url_for('post_new') }}" class="nav-btn">+ 写文章</a>
 
-        {# 用户下拉：头像+名字 #}
-        <div class="nav-dropdown">
-          <a href="#" class="nav-dropdown-toggle user-toggle">
-            <img src="{{ cu.avatar|avatar_url }}" class="avatar-sm" alt="头像">
-            <span>{{ cu.username }}</span>
-            <span class="caret">▾</span>
-          </a>
-          <div class="nav-dropdown-menu">
-            <a href="{{ url_for('profile') }}">👤 个人中心</a>
-            <a href="{{ url_for('logout') }}">🚪 退出</a>
-          </div>
-        </div>
-
         {# 管理下拉（admin可见） #}
         {% if cu.is_admin %}
         <div class="nav-dropdown">
@@ -50,6 +37,19 @@
           </div>
         </div>
         {% endif %}
+
+        {# 用户下拉：头像+名字 #}
+        <div class="nav-dropdown">
+          <a href="#" class="nav-dropdown-toggle user-toggle">
+            <img src="{{ cu.avatar|avatar_url }}" class="avatar-sm" alt="头像">
+            <span>{{ cu.username }}</span>
+            <span class="caret">▾</span>
+          </a>
+          <div class="nav-dropdown-menu">
+            <a href="{{ url_for('profile') }}">👤 个人中心</a>
+            <a href="{{ url_for('logout') }}">🚪 退出</a>
+          </div>
+        </div>
 
       {% else %}
         <a href="{{ url_for('login') }}">登录</a>
