@@ -1,5 +1,86 @@
 {% extends "base.html" %}
 {% block title %}YTL 开发平台 - 首页{% endblock %}
+{% block extra_css %}
+<style>
+/* === Hero === */
+.hero {
+  text-align: center;
+  padding: 40px 20px 30px;
+}
+.hero h1 { font-size: 28px; color: #111827; margin: 0 0 6px; }
+.hero p { color: #6b7280; font-size: 15px; margin: 0; }
+
+/* === Stats === */
+.stats-row {
+  display: flex; gap: 16px; margin: 0 auto 36px; max-width: 520px; justify-content: center;
+}
+.stat-card {
+  flex: 1; text-align: center; background: #fff; border: 1px solid #e5e7eb;
+  border-radius: 12px; padding: 18px 12px;
+}
+.stat-card .num { font-size: 28px; font-weight: 700; color: #4f46e5; }
+.stat-card .lbl { font-size: 13px; color: #6b7280; margin-top: 2px; }
+
+/* === Grid === */
+.home-grid { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px; }
+
+/* === Section Header === */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.section-header h2 { font-size: 18px; color: #111827; margin: 0; }
+.link-more { font-size: 14px; color: #6366f1; text-decoration: none; }
+.link-more:hover { text-decoration: underline; }
+
+/* === 仓库卡片 === */
+.repo-card {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+  padding: 20px 24px; margin-bottom: 12px;
+  transition: box-shadow .2s, border-color .2s;
+}
+.repo-card:hover { border-color: #c7d2fe; box-shadow: 0 4px 16px rgba(99,102,241,.08); }
+.repo-card-title {
+  font-size: 17px; font-weight: 600; color: #111827; margin: 0 0 4px;
+  display: flex; align-items: center; gap: 8px;
+}
+.repo-card-title a { color: inherit; text-decoration: none; }
+.repo-card-title a:hover { color: #4f46e5; }
+.repo-card-desc { font-size: 14px; color: #6b7280; margin: 0 0 8px; line-height: 1.5; }
+.repo-card-meta {
+  font-size: 12px; color: #9ca3af; display: flex; align-items: center; gap: 6px;
+}
+.repo-card-meta .sep { color: #d1d5db; }
+
+/* === 文章卡片 (复用 post_list 风格) === */
+.post-card {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+  padding: 20px 24px; margin-bottom: 12px;
+  transition: box-shadow .2s, border-color .2s;
+}
+.post-card:hover { border-color: #c7d2fe; box-shadow: 0 4px 16px rgba(99,102,241,.08); }
+.post-meta-line {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: #6b7280; margin-bottom: 6px;
+}
+.post-meta-line .sep { color: #d1d5db; }
+.post-meta-line .author-name { color: #374151; font-weight: 600; }
+.post-meta-line .cat-name {
+  color: #6366f1; background: #eef2ff; padding: 1px 8px;
+  border-radius: 10px; font-size: 12px; font-weight: 500;
+}
+.post-title { font-size: 17px; font-weight: 700; color: #111827; margin: 0 0 6px; line-height: 1.4; }
+.post-title a { color: inherit; text-decoration: none; }
+.post-title a:hover { color: #4f46e5; }
+.post-summary { font-size: 14px; color: #6b7280; line-height: 1.7; margin: 0 0 8px; }
+.post-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.post-tag { color: #818cf8; font-size: 13px; }
+.post-tag:hover { color: #4f46e5; }
+
+.visibility-icon { font-size: 14px; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="hero">
   <h1>⚡ YTL 开发平台</h1>
@@ -14,63 +95,78 @@
 </div>
 
 <div class="home-grid">
+  <!-- 最近更新仓库 -->
   <div class="home-section">
     <div class="section-header">
       <h2>📦 最近更新仓库</h2>
-      {% if cu %}<a href="{{ url_for('repo_new') }}" class="btn btn-sm btn-primary">新建仓库</a>{% endif %}
+      <a href="{{ url_for('repo_list') }}" class="link-more">查看全部 →</a>
     </div>
     {% if repos %}
-      <ul class="repo-list">
-        {% for r in repos %}
-        <li>
-          <a href="{{ url_for('repo_view', repo_id=r.id) }}" class="repo-name">{{ r.name }}</a>
-          <span class="visibility-badge">{{ '🌐' if r.is_public else '🔒' }}</span>
-          <span class="repo-meta">{{ r.file_count }} 文件 · {{ r.total_size_display }} · 👤 {{ r.owner.username }} · {{ r.updated_at|time_since }}</span>
-          {% if r.description %}<p class="repo-desc">{{ r.description }}</p>{% endif %}
-        </li>
-        {% endfor %}
-      </ul>
+    {% for r in repos %}
+    <div class="repo-card">
+      <div class="repo-card-title">
+        <a href="{{ url_for('repo_view', repo_id=r.id) }}">{{ r.name }}</a>
+        <span class="visibility-icon">{{ '🌐' if r.is_public else '🔒' }}</span>
+      </div>
+      {% if r.description %}<p class="repo-card-desc">{{ r.description }}</p>{% endif %}
+      <div class="repo-card-meta">
+        <span>👤 {{ r.owner.username }}</span>
+        <span class="sep">·</span>
+        <span>{{ r.file_count }} 文件</span>
+        {% if r.total_size_display %}
+        <span class="sep">·</span>
+        <span>{{ r.total_size_display }}</span>
+        {% endif %}
+        <span class="sep">·</span>
+        <span>{{ r.updated_at|time_since }}</span>
+      </div>
+    </div>
+    {% endfor %}
     {% else %}
-      <p class="empty">暂无仓库</p>
+    <p class="empty">暂无仓库</p>
     {% endif %}
-    <a href="{{ url_for('repo_list') }}" class="link-more">查看全部 →</a>
   </div>
 
+  <!-- 最新文章 -->
   <div class="home-section">
     <div class="section-header">
       <h2>📝 最新文章</h2>
-      {% if cu %}<a href="{{ url_for('post_new') }}" class="btn btn-sm btn-primary">写文章</a>{% endif %}
+      <a href="{{ url_for('post_list') }}" class="link-more">查看全部 →</a>
     </div>
     {% if posts %}
-      <ul class="post-list">
-        {% for p in posts %}
-        <li>
-          <a href="{{ url_for('post_detail', post_id=p.id) }}">{{ p.title }}</a>
-          <span class="visibility-badge">{{ '🌐' if p.is_public else '🔒' }}</span>
-          <span class="post-meta">{{ p.author.username }} · {{ p.created_at|time_since }}{% if p.category %} · {{ p.category.name }}{% endif %}</span>
-        </li>
+    {% for p in posts %}
+    <article class="post-card">
+      <div class="post-meta-line">
+        <span class="author-name">{{ p.author.username }}</span>
+        <span class="sep">·</span>
+        <span>{{ p.created_at.strftime('%Y-%m-%d') }}</span>
+        {% if p.category %}
+        <span class="sep">·</span>
+        <span class="cat-name">{{ p.category.name }}</span>
+        {% endif %}
+        {% if not p.is_public %}
+        <span class="sep">·</span>
+        <span>🔒 私有</span>
+        {% endif %}
+      </div>
+      <h2 class="post-title">
+        <a href="{{ url_for('post_detail', post_id=p.id) }}">{{ p.title }}</a>
+      </h2>
+      {% if p.summary %}
+      <p class="post-summary">{{ p.summary }}</p>
+      {% endif %}
+      {% if p.tag_list %}
+      <div class="post-tags">
+        {% for tag in p.tag_list %}
+        <span class="post-tag">#{{ tag }}</span>
         {% endfor %}
-      </ul>
+      </div>
+      {% endif %}
+    </article>
+    {% endfor %}
     {% else %}
-      <p class="empty">暂无文章</p>
+    <p class="empty">暂无文章</p>
     {% endif %}
-    <a href="{{ url_for('post_list') }}" class="link-more">查看全部 →</a>
   </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-const timeSince = (date) => {
-  const s = Math.floor((Date.now() - new Date(date)) / 1000);
-  if (s < 60) return '刚刚';
-  if (s < 3600) return Math.floor(s/60) + '分钟前';
-  if (s < 86400) return Math.floor(s/3600) + '小时前';
-  if (s < 604800) return Math.floor(s/86400) + '天前';
-  return new Date(date).toLocaleDateString();
-};
-document.querySelectorAll('[data-time]').forEach(el => {
-  el.textContent = timeSince(el.dataset.time);
-});
-</script>
 {% endblock %}
