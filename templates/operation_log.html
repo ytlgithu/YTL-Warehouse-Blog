@@ -38,19 +38,27 @@
 
 {% if pagination.pages > 1 %}
 <div class="pagination-wrap">
-  <div class="pagination">
-    {% if pagination.has_prev %}
-      <a href="{{ url_for('operation_log', page=pagination.prev_num) }}">&laquo; 上一页</a>
+  <a href="{{ url_for('operation_log', page=pagination.prev_num) }}"
+     class="page-btn page-nav {% if not pagination.has_prev %}disabled{% endif %}">
+    ‹ 上一页
+  </a>
+
+  {% set cur = pagination.page %}
+  {% set total = pagination.pages %}
+
+  {% for p in range(1, total + 1) %}
+    {% if p == 1 or p == total or (p >= cur - 1 and p <= cur + 1) %}
+      <a href="{{ url_for('operation_log', page=p) }}"
+         class="page-btn {% if p == cur %}active{% endif %}">{{ p }}</a>
+    {% elif p == cur - 2 or p == cur + 2 %}
+      <span class="page-ellipsis">…</span>
     {% endif %}
-    {% for p in range(1, pagination.pages + 1) %}
-      {% if p >= pagination.page - 2 and p <= pagination.page + 2 %}
-        <a href="{{ url_for('operation_log', page=p) }}" class="{% if p == pagination.page %}active{% endif %}">{{ p }}</a>
-      {% endif %}
-    {% endfor %}
-    {% if pagination.has_next %}
-      <a href="{{ url_for('operation_log', page=pagination.next_num) }}">下一页 &raquo;</a>
-    {% endif %}
-  </div>
+  {% endfor %}
+
+  <a href="{{ url_for('operation_log', page=pagination.next_num) }}"
+     class="page-btn page-nav {% if not pagination.has_next %}disabled{% endif %}">
+    下一页 ›
+  </a>
 </div>
 {% endif %}
 
@@ -82,5 +90,58 @@
 .action-update_post { background:#e8f5e2; color:#2d5a27; }
 .action-toggle_repo_visibility { background:#fff3cd; color:#856404; }
 .action-toggle_post_visibility { background:#fff3cd; color:#856404; }
+
+.pagination-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 24px;
+}
+.page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  text-decoration: none;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+.page-btn:hover:not(.disabled):not(.active) {
+  border-color: #3b82f6;
+  color: #3b82f6;
+  background: #eff6ff;
+}
+.page-btn.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+  font-weight: 700;
+}
+.page-btn.disabled {
+  color: #d1d5db;
+  border-color: #f3f4f6;
+  background: #f9fafb;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.page-nav {
+  padding: 0 14px;
+  font-weight: 600;
+}
+.page-ellipsis {
+  color: #9ca3af;
+  font-size: 14px;
+  padding: 0 4px;
+  user-select: none;
+}
 </style>
 {% endblock %}
