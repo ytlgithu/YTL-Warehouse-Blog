@@ -116,6 +116,10 @@
   margin-bottom: 20px;
 }
 .write-btn:hover { background: #4338ca; }
+
+/* 文章网格 */
+.posts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.posts-grid .post-card { margin-bottom: 0; }
 </style>
 {% endblock %}
 {% block content %}
@@ -143,6 +147,7 @@
 {% endif %}
 
 {% if posts %}
+<div class="posts-grid">
 {% for p in posts %}
 <article class="post-card">
   <div class="post-meta-line">
@@ -173,6 +178,7 @@
   {% endif %}
 </article>
 {% endfor %}
+</div>
 {% else %}
 <p class="empty-msg">暂无文章</p>
 {% endif %}
