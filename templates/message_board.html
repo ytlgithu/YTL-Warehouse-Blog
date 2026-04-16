@@ -45,7 +45,7 @@
     <div class="msg-card">
       <div class="msg-card-header">
         <div class="msg-user">
-          <div class="msg-avatar">{{ msg.username[0].upper() }}</div>
+          <div class="msg-avatar"><img src="{{ msg.user.avatar|avatar_url if msg.user and msg.user.avatar else url_for('static', filename='img/default_avatar.png') }}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" alt="avatar"></div>
           <span>{{ msg.username }}</span>
         </div>
         <div style="display:flex; align-items:center; gap:12px;">
