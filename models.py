@@ -136,7 +136,7 @@ class RepoFile(db.Model):
     def to_html_table(self, repo_upload_dir):
         """将 xlsx 转为 HTML 表格（保留字体和填充颜色）"""
         import openpyxl
-        from openpyxl.styles import Color
+        from openpyxl.styles import Color as OxlColor
         fpath = os.path.join(repo_upload_dir, self.stored_name)
         wb = openpyxl.load_workbook(fpath, data_only=False)
         ws = wb.active
@@ -145,17 +145,20 @@ class RepoFile(db.Model):
             """获取颜色值"""
             if not color:
                 return None
-            # RGB 颜色
+            # 直接是字符串
+            if isinstance(color, str):
+                if len(color) == 8:  # AARRGGBB
+                    return f"#{color[2:]}"
+                return color
+            # RGB 颜色对象
             if hasattr(color, 'rgb') and color.rgb:
                 rgb = color.rgb
-                if isinstance(rgb, str) and len(rgb) == 8:  # AARRGGBB
-                    return f"#{rgb[2:]}"  # 去掉 alpha
-                return rgb
+                if isinstance(rgb, str):
+                    if len(rgb) == 8:
+                        return f"#{rgb[2:]}"
+                    return rgb
             # 主题色
             if hasattr(color, 'theme') and color.theme is not None:
-                return None  # 主题色需要主题调色板，暂不处理
-            # 索引色
-            if hasattr(color, 'indexed') and color.indexed is not None:
                 return None
             return None
         
@@ -172,16 +175,17 @@ class RepoFile(db.Model):
                     if c:
                         font_color = f"color:{c};"
                 
-                # 填充颜色 (fgColor 用于实心填充)
+                # 填充颜色
                 bg_color = ""
                 if cell.fill:
                     fill = cell.fill
-                    # 优先使用 fgColor（前景色/实心填充）
-                    if hasattr(fill, 'fgColor') and fill.fgColor:
-                        c = get_color(fill.fgColor)
-                        if c:
-                            bg_color = f"background-color:{c};"
-                    # 次选 start_color
+                    # 实心填充用 fgColor
+                    if hasattr(fill, 'fill_type') and fill.fill_type == 'solid':
+                        if hasattr(fill, 'fgColor') and fill.fgColor:
+                            c = get_color(fill.fgColor)
+                            if c:
+                                bg_color = f"background-color:{c};"
+                    # 其他类型用 start_color
                     elif hasattr(fill, 'start_color') and fill.start_color:
                         c = get_color(fill.start_color)
                         if c:
