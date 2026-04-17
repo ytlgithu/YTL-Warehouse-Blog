@@ -2,103 +2,287 @@
 {% block title %}分类管理{% endblock %}
 {% block extra_css %}
 <style>
-.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-.cat-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px 24px; margin-bottom: 12px; display: flex; align-items: center; gap: 16px; transition: box-shadow .15s; }
-.cat-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); }
-.cat-info { flex: 1; }
-.cat-name { font-size: 16px; font-weight: 600; color: #111827; }
-.cat-slug { font-size: 12px; color: #9ca3af; font-family: monospace; margin-top: 2px; }
-.cat-desc { font-size: 13px; color: #6b7280; margin-top: 4px; }
-.cat-count { font-size: 12px; color: #9ca3af; text-align: right; white-space: nowrap; }
-.cat-actions { display: flex; gap: 8px; align-items: center; }
-.btn-sm { padding: 5px 14px; border-radius: 8px; font-size: 13px; border: 1px solid #e5e7eb; background: #fff; color: #374151; cursor: pointer; transition: all .15s; }
-.btn-sm:hover { background: #3b82f6; color: #fff; border-color: #3b82f6; }
-.btn-danger { border-color: #fca5a5; color: #e11d48; }
-.btn-danger:hover { background: #e11d48; color: #fff; border-color: #e11d48; }
-.btn-save { background: #10b981; color: #fff; border-color: #10b981; }
-.btn-save:hover { background: #059669; border-color: #059669; }
-.btn-cancel { color: #9ca3af; }
-.btn-cancel:hover { background: #f3f4f6; color: #374151; }
-.add-form { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; }
-.add-form h3 { margin: 0 0 16px 0; font-size: 15px; color: #374151; }
-.form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-.form-row > * { flex: 1; min-width: 140px; }
-input[type="text"], input[type="number"], textarea { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; width: 100%; box-sizing: border-box; }
-input:focus, textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
-textarea { resize: vertical; min-height: 60px; }
-.edit-form { display: none; width: 100%; }
-.cat-card.editing .cat-info { display: none; }
-.cat-card.editing .edit-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
-.edit-form > div { flex: 1; min-width: 120px; }
-.edit-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+/* 页面标题 */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+.page-header h1 { margin: 0; font-size: 22px; color: #1e293b; }
+
+/* 顶部提示条 */
+.tip-bar {
+  background: linear-gradient(135deg, #eff6ff, #f0f9ff);
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-size: 13px;
+  color: #1d4ed8;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 添加区 — 柔和渐变白卡 */
+.add-section {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
+  border: 1px solid #f1f5f9;
+  transition: box-shadow .2s;
+}
+.add-section:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.06); }
+.add-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 表单行 */
+.f-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.f-row > div { flex: 1; min-width: 160px; }
+.f-row input, .f-row textarea {
+  width: 100%;
+  padding: 9px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1e293b;
+  background: #f8fafc;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+  box-sizing: border-box;
+}
+.f-row input:focus, .f-row textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+}
+.f-row input::placeholder, .f-row textarea::placeholder { color: #94a3b8; }
+
+/* 保存按钮 */
+.btn-add {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 22px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff; border: none; border-radius: 10px;
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(59,130,246,.35);
+  transition: all .18s;
+}
+.btn-add:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(59,130,246,.45);
+}
+.btn-add:active { transform: translateY(0); }
+
+/* 分类卡片列表 */
+.cat-list { display: flex; flex-direction: column; gap: 10px; }
+
+/* 单个分类卡片 */
+.cat-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 2px 8px rgba(0,0,0,.03);
+  transition: transform .18s, box-shadow .18s, border-color .18s;
+  position: relative;
+  overflow: hidden;
+}
+/* 左侧彩色accent条 */
+.cat-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: linear-gradient(to bottom, #3b82f6, #8b5cf6);
+  border-radius: 14px 0 0 14px;
+}
+.cat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.05);
+  border-color: #e0e7ff;
+}
+
+/* 卡片信息区 */
+.cat-info { flex: 1; min-width: 0; }
+.cat-name {
+  font-size: 15px; font-weight: 600; color: #1e293b;
+  margin-bottom: 3px;
+}
+.cat-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cat-slug {
+  font-size: 11px; font-family: 'Courier New', monospace;
+  color: #94a3b8; background: #f1f5f9;
+  padding: 2px 7px; border-radius: 20px;
+}
+.cat-desc { font-size: 12px; color: #64748b; }
+
+/* 文章数 */
+.cat-count {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 52px;
+}
+.count-num { font-size: 22px; font-weight: 700; color: #3b82f6; line-height: 1; }
+.count-label { font-size: 11px; color: #94a3b8; }
+
+/* 操作按钮 */
+.cat-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.btn-icon {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 14px; border-radius: 8px;
+  font-size: 13px; font-weight: 500;
+  border: 1.5px solid #e2e8f0;
+  background: #fff; color: #475569;
+  cursor: pointer; text-decoration: none;
+  transition: all .15s;
+}
+.btn-icon:hover {
+  border-color: #3b82f6; color: #2563eb;
+  background: #eff6ff;
+  transform: translateY(-1px);
+}
+.btn-icon.danger { color: #dc2626; border-color: #fecaca; }
+.btn-icon.danger:hover {
+  background: #fef2f2; border-color: #dc2626;
+  color: #b91c1c;
+}
+.btn-icon:disabled {
+  opacity: .4; cursor: not-allowed; transform: none;
+}
+
+/* 编辑表单（嵌入卡片内） */
+.cat-edit-form {
+  display: none;
+  flex-direction: column; gap: 10px;
+  width: 100%;
+}
+.cat-card.open .cat-info { display: none; }
+.cat-card.open .cat-edit-form { display: flex; }
+.cat-edit-form .ef-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.cat-edit-form .ef-row > div { flex: 1; min-width: 130px; }
+.cat-edit-form input {
+  width: 100%; padding: 8px 12px;
+  border: 1.5px solid #e2e8f0; border-radius: 8px;
+  font-size: 13px; background: #f8fafc;
+  box-sizing: border-box;
+  transition: border-color .15s, box-shadow .15s;
+}
+.cat-edit-form input:focus {
+  outline: none; border-color: #3b82f6;
+  background: #fff; box-shadow: 0 0 0 3px rgba(59,130,246,.1);
+}
+.ebtn-row { display: flex; gap: 8px; }
+.btn-save {
+  padding: 7px 18px; background: #10b981; color: #fff;
+  border: none; border-radius: 8px; font-size: 13px;
+  font-weight: 500; cursor: pointer;
+  box-shadow: 0 2px 6px rgba(16,185,129,.3);
+  transition: all .15s;
+}
+.btn-save:hover { background: #059669; transform: translateY(-1px); }
+.btn-cancel {
+  padding: 7px 14px; background: #fff; color: #64748b;
+  border: 1.5px solid #e2e8f0; border-radius: 8px;
+  font-size: 13px; cursor: pointer; transition: all .15s;
+}
+.btn-cancel:hover { background: #f1f5f9; color: #1e293b; }
+
+/* 空状态 */
+.empty-state {
+  text-align: center; padding: 60px 20px; color: #94a3b8;
+  font-size: 14px;
+}
 </style>
 {% endblock %}
 {% block content %}
 <div class="page-header"><h1>📂 分类管理</h1></div>
 
+<div class="tip-bar">💡 分类用于给文章归类，删除前请先移除该分类下的所有文章</div>
+
 {# 添加新分类 #}
-<div class="add-form">
-  <h3>➕ 添加新分类</h3>
+<div class="add-section">
+  <div class="add-title">➕ 添加新分类</div>
   <form method="POST" action="{{ url_for('category_new') }}">
-    <div class="form-row">
+    <div class="f-row">
       <div><input name="name" placeholder="分类名称（如：技术分享）" required></div>
       <div><input name="slug" placeholder="标识（URL友好，如：tech）" required></div>
-      <div><input name="order" type="number" value="0" placeholder="排序"></div>
+      <div><input name="order" type="number" value="0" placeholder="排序权重"></div>
     </div>
-    <div style="margin-bottom:12px"><input name="description" placeholder="描述（可选）"></div>
-    <button type="submit" class="btn-sm btn-save">保存</button>
+    <div class="f-row">
+      <div><input name="description" placeholder="描述（可选）"></div>
+      <div style="flex:.3; display:flex;align-items:flex-end">
+        <button type="submit" class="btn-add">✓ 创建分类</button>
+      </div>
+    </div>
   </form>
 </div>
 
 {# 分类列表 #}
-{% for cat in categories %}
-<div class="cat-card" id="cat-{{ cat.id }}">
-  <div class="cat-info">
-    <div class="cat-name">{{ cat.name }}</div>
-    <div class="cat-slug">{{ cat.slug }}</div>
-    {% if cat.description %}<div class="cat-desc">{{ cat.description }}</div>{% endif %}
-  </div>
-  <div class="cat-count">{{ cat.post_count }} 篇</div>
-  <div class="cat-actions">
-    <button class="btn-sm" onclick="showEdit({{ cat.id }})">✏️ 编辑</button>
-    {% if cat.post_count == 0 %}
-    <form method="POST" action="{{ url_for('category_delete', cat_id=cat.id) }}" onsubmit="return confirm('确定删除分类「{{ cat.name }}」？')">
-      <button type="submit" class="btn-sm btn-danger">🗑️ 删除</button>
+<div class="cat-list">
+  {% for cat in categories %}
+  <div class="cat-card" id="card-{{ cat.id }}">
+    <div class="cat-info">
+      <div class="cat-name">{{ cat.name }}</div>
+      <div class="cat-meta">
+        <span class="cat-slug">{{ cat.slug }}</span>
+        {% if cat.description %}<span class="cat-desc">{{ cat.description }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="cat-count">
+      <span class="count-num">{{ cat.post_count }}</span>
+      <span class="count-label">篇</span>
+    </div>
+    <div class="cat-actions">
+      <button class="btn-icon" onclick="openEdit({{ cat.id }})">✏️ 编辑</button>
+      {% if cat.post_count == 0 %}
+      <form method="POST" action="{{ url_for('category_delete', cat_id=cat.id) }}" style="display:inline" onsubmit="return confirm('确定删除「{{ cat.name }}」？')">
+        <button type="submit" class="btn-icon danger">🗑️ 删除</button>
+      </form>
+      {% else %}
+      <span class="btn-icon danger" style="opacity:.4;cursor:not-allowed" title="有文章不可删除">🗑️ 删除</span>
+      {% endif %}
+    </div>
+
+    {# 嵌入式编辑表单 #}
+    <form class="cat-edit-form" method="POST" action="{{ url_for('category_edit', cat_id=cat.id) }}">
+      <div class="ef-row">
+        <div><input name="name" value="{{ cat.name }}" placeholder="名称" required></div>
+        <div><input name="slug" value="{{ cat.slug }}" placeholder="标识" required></div>
+        <div><input name="order" type="number" value="{{ cat.order }}" placeholder="排序"></div>
+      </div>
+      <div><input name="description" value="{{ cat.description or '' }}" placeholder="描述（可选）"></div>
+      <div class="ebtn-row">
+        <button type="submit" class="btn-save">💾 保存</button>
+        <button type="button" class="btn-cancel" onclick="closeEdit({{ cat.id }})">取消</button>
+      </div>
     </form>
-    {% else %}
-    <button class="btn-sm btn-danger" disabled title="有文章不可删除">🗑️ 删除</button>
-    {% endif %}
   </div>
+  {% endfor %}
 </div>
-{# 编辑表单（隐藏） #}
-<div class="cat-card edit-form" id="edit-{{ cat.id }}">
-  <form method="POST" action="{{ url_for('category_edit', cat_id=cat.id) }}" style="display:flex;flex-direction:column;gap:8px;width:100%">
-    <div class="edit-row">
-      <div><input name="name" value="{{ cat.name }}" placeholder="名称" required></div>
-      <div><input name="slug" value="{{ cat.slug }}" placeholder="标识" required></div>
-      <div><input name="order" type="number" value="{{ cat.order }}" placeholder="排序"></div>
-    </div>
-    <div><input name="description" value="{{ cat.description or '' }}" placeholder="描述（可选）"></div>
-    <div style="display:flex;gap:8px">
-      <button type="submit" class="btn-sm btn-save">💾 保存</button>
-      <button type="button" class="btn-sm btn-cancel" onclick="hideEdit({{ cat.id }})">取消</button>
-    </div>
-  </form>
-</div>
-{% endfor %}
 
 {% if not categories %}
-<p style="color:#9ca3af;text-align:center;padding:40px 0">暂无分类，点击上方添加</p>
+<div class="empty-state">暂无分类，填写上方表单创建第一个分类吧 🎉</div>
 {% endif %}
 
 <script>
-function showEdit(id) {
-  document.getElementById('cat-'+id).classList.add('editing');
-  document.getElementById('edit-'+id).style.display = 'flex';
+function openEdit(id) {
+  document.getElementById('card-'+id).classList.add('open');
 }
-function hideEdit(id) {
-  document.getElementById('cat-'+id).classList.remove('editing');
-  document.getElementById('edit-'+id).style.display = 'none';
+function closeEdit(id) {
+  document.getElementById('card-'+id).classList.remove('open');
 }
 </script>
 {% endblock %}
