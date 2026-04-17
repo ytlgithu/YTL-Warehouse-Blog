@@ -217,8 +217,8 @@
   <div class="add-title">➕ 添加新分类</div>
   <form method="POST" action="{{ url_for('category_new') }}">
     <div class="f-row">
-      <div><input name="name" placeholder="分类名称（如：技术分享）" required></div>
-      <div><input name="slug" placeholder="标识（URL友好，如：tech）" required></div>
+      <div><input name="name" placeholder="填写显示名称，如：技术分享" required></div>
+      <div><input name="slug" placeholder="URL标识，只填英文/数字/短横线，如：tech" required></div>
       <div style="flex:.3; display:flex;align-items:flex-end">
         <button type="submit" class="btn-add">✓ 创建分类</button>
       </div>
@@ -255,8 +255,8 @@
     {# 嵌入式编辑表单 #}
     <form class="cat-edit-form" method="POST" action="{{ url_for('category_edit', cat_id=cat.id) }}">
       <div class="ef-row">
-        <div><input name="name" value="{{ cat.name }}" placeholder="名称" required></div>
-        <div><input name="slug" value="{{ cat.slug }}" placeholder="标识" required></div>
+        <div><input name="name" value="{{ cat.name }}" placeholder="显示名称" required></div>
+        <div><input name="slug" value="{{ cat.slug }}" placeholder="URL标识（英文/数字/短横线）" required></div>
         <div><input name="order" type="number" value="{{ cat.order }}" placeholder="排序"></div>
       </div>
       <div><input name="description" value="{{ cat.description or '' }}" placeholder="描述（可选）"></div>
