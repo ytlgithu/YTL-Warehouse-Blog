@@ -1097,7 +1097,9 @@ def category_new():
     name = request.form.get('name', '').strip()
     slug = request.form.get('slug', '').strip()
     description = request.form.get('description', '').strip()
-    order = request.form.get('order', 0, type=int)
+    # 自动取最大序号+1
+    max_order = db.session.query(db.func.max(Category.order)).scalar() or 0
+    order = max_order + 1
     if not name or not slug:
         flash('名称和标识不能为空', 'danger')
         return redirect(url_for('category_list'))
