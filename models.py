@@ -137,32 +137,56 @@ class RepoFile(db.Model):
         """将 xlsx 转为 HTML 表格（保留字体和填充颜色）"""
         import openpyxl
         from openpyxl.styles import Color
-        from openpyxl.utils import get_column_letter
         fpath = os.path.join(repo_upload_dir, self.stored_name)
         wb = openpyxl.load_workbook(fpath, data_only=False)
         ws = wb.active
+        
+        def get_color(color):
+            """获取颜色值"""
+            if not color:
+                return None
+            # RGB 颜色
+            if hasattr(color, 'rgb') and color.rgb:
+                rgb = color.rgb
+                if isinstance(rgb, str) and len(rgb) == 8:  # AARRGGBB
+                    return f"#{rgb[2:]}"  # 去掉 alpha
+                return rgb
+            # 主题色
+            if hasattr(color, 'theme') and color.theme is not None:
+                return None  # 主题色需要主题调色板，暂不处理
+            # 索引色
+            if hasattr(color, 'indexed') and color.indexed is not None:
+                return None
+            return None
         
         html = '<table class="excel-table">'
         for row_idx, row in enumerate(ws.iter_rows()):
             html += '<tr>'
             for cell in row:
-                # 获取单元格值
                 value = cell.value if cell.value is not None else ""
-                # 获取字体颜色
+                
+                # 字体颜色
                 font_color = ""
                 if cell.font and cell.font.color:
-                    color = cell.font.color
-                    if color.type == 'rgb' and color.rgb:
-                        font_color = f"color:{color.rgb};"
-                    elif color.type == 'theme':
-                        font_color = f"color:inherit;"
-                # 获取填充颜色
+                    c = get_color(cell.font.color)
+                    if c:
+                        font_color = f"color:{c};"
+                
+                # 填充颜色 (fgColor 用于实心填充)
                 bg_color = ""
-                if cell.fill and cell.fill.start_color:
-                    color = cell.fill.start_color
-                    if color.type == 'rgb' and color.rgb:
-                        bg_color = f"background-color:{color.rgb};"
-                # 合并样式
+                if cell.fill:
+                    fill = cell.fill
+                    # 优先使用 fgColor（前景色/实心填充）
+                    if hasattr(fill, 'fgColor') and fill.fgColor:
+                        c = get_color(fill.fgColor)
+                        if c:
+                            bg_color = f"background-color:{c};"
+                    # 次选 start_color
+                    elif hasattr(fill, 'start_color') and fill.start_color:
+                        c = get_color(fill.start_color)
+                        if c:
+                            bg_color = f"background-color:{c};"
+                
                 style = f'style="{font_color}{bg_color}"' if font_color or bg_color else ""
                 tag = 'th' if row_idx == 0 else 'td'
                 html += f'<{tag} {style}>{value}</{tag}>'
