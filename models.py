@@ -145,9 +145,14 @@ class RepoFile(db.Model):
             """获取颜色值"""
             if not color:
                 return None
+            # 空字符串或无意义值
+            if hasattr(color, 'rgb') and not color.rgb:
+                return None
             # 直接是字符串
             if isinstance(color, str):
-                if len(color) == 8:  # AARRGGBB
+                if not color or len(color) < 6:
+                    return None
+                if len(color) == 8:
                     return f"#{color[2:]}"
                 return color
             # RGB 颜色对象
@@ -175,8 +180,8 @@ class RepoFile(db.Model):
                     if c:
                         font_color = f"color:{c};"
                 
-                # 填充颜色
-                bg_color = ""
+                # 填充颜色 - Excel默认白色，无填充时显示白色
+                bg_color = "background-color:#ffffff;"
                 if cell.fill:
                     fill = cell.fill
                     # 实心填充用 fgColor
