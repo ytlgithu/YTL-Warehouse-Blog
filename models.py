@@ -185,6 +185,9 @@ class RepoFile(db.Model):
                             c = get_color(fill.fgColor)
                             if c:
                                 bg_color = f"background-color:{c};"
+                                # 黑色背景用白字
+                                if c.lower() in ['#000000', '000000', 'black']:
+                                    font_color = "color:#ffffff;"
                     # 其他类型用 start_color
                     elif hasattr(fill, 'start_color') and fill.start_color:
                         c = get_color(fill.start_color)
