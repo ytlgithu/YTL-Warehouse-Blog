@@ -465,14 +465,12 @@ function generateTOC() {
   
   // 滚动时更新目录高亮
   let ticking = false;
+  let scrollTimer = null;
   window.addEventListener('scroll', function() {
-    if (!ticking) {
-      window.requestAnimationFrame(function() {
-        updateActiveTOC(headings, tocContent);
-        ticking = false;
-      });
-      ticking = true;
-    }
+    if (scrollTimer) clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(function() {
+      updateActiveTOC(headings, tocContent);
+    }, 50); // 滚动停止 50ms 后再更新高亮
   });
 }
 
