@@ -447,76 +447,75 @@ function generateTOC() {
       }
     });
   });
-  
-  // 点击目录项滚动
+
+  // 点击目录项滚动：立即高亮，阻止 auto-detect 覆盖
+  let clickedId = null;
   tocContent.querySelectorAll('a[data-target]').forEach(link => {
     link.addEventListener('click', function(e) {
       e.preventDefault();
       const targetId = this.getAttribute('data-target');
       const targetEl = document.getElementById(targetId);
       if (targetEl) {
-        // 点击时立即高亮，不等滚动
+        clickedId = targetId;
         tocContent.querySelectorAll('a').forEach(a => a.classList.remove('active'));
         this.classList.add('active');
         targetEl.scrollIntoView({ behavior: 'smooth' });
+        // 600ms 后自动释放锁，让后续滚动恢复 auto-detect
+        setTimeout(() => { clickedId = null; }, 600);
       }
     });
   });
   
-  // 滚动时更新目录高亮
-  let ticking = false;
+  // 滚动时更新目录高亮（跳过点击刚设置的高亮）
   let scrollTimer = null;
   window.addEventListener('scroll', function() {
     if (scrollTimer) clearTimeout(scrollTimer);
     scrollTimer = setTimeout(function() {
-      updateActiveTOC(headings, tocContent);
-    }, 50); // 滚动停止 50ms 后再更新高亮
+      updateActiveTOC(headings, tocContent, clickedId);
+    }, 100);
   });
 }
 
-// 更新目录高亮
-function updateActiveTOC(headings, tocContent) {
-  const headerHeight = 120;  // header 高度 + 间距（加大偏移量确保选中当前标题而非下一个）
-  const scrollPos = window.scrollY + headerHeight;
+// 更新目录高亮：使用 getBoundingClientRect 精确定位
+function updateActiveTOC(headings, tocContent, lockedId) {
+  // 如果刚点击过，跳过 auto-detect（保持点击高亮）
+  if (lockedId) return;
+
+  const headerThreshold = 100;  // 标题顶部在此像素以内视为"已过"
   const windowHeight = window.innerHeight;
   const docHeight = document.documentElement.scrollHeight;
-  
-  // 检查是否滚动到接近底部（距离底部 100px 以内）
-  const isNearBottom = (window.scrollY + windowHeight) >= (docHeight - 100);
-  
+  const scrollY = window.scrollY;
+
+  // 接近底部 → 选中最后一个标题
+  const isNearBottom = (scrollY + windowHeight) >= (docHeight - 80);
+
   let activeId = null;
-  
+
   if (isNearBottom) {
-    // 接近底部时，选中最后一个标题
     activeId = headings[headings.length - 1].id;
   } else {
-    // 正常情况：找当前视口内最靠上的标题
-    // 如果有标题在视口内（顶部在视口范围内），选中第一个在视口内的
-    // 否则选最后一个在视口上方的
-    
+    // 用 getBoundingClientRect 计算标题相对视口的位置
     let firstInView = null;
     let lastAbove = null;
-    
+
     headings.forEach(heading => {
-      const top = heading.offsetTop;
-      const bottom = top + heading.offsetHeight;
-      
-      // 标题顶部在视口顶部之下
-      if (top >= scrollPos) {
-        if (!firstInView) {
-          firstInView = heading.id;
-        }
+      const rect = heading.getBoundingClientRect();
+      // rect.top：标题顶部到视口顶部的距离（正值=在视口下方）
+      const top = rect.top;
+
+      // 标题顶部已进入视口（距顶部 < headerThreshold）
+      if (top >= 0 && top <= headerThreshold) {
+        if (!firstInView) firstInView = heading.id;
       }
-      // 标题在视口上方或刚好接触视口顶部
-      if (top <= scrollPos) {
+      // 标题顶部已在视口上方（距顶部 > headerThreshold，即完全在视口内或上方）
+      if (top <= headerThreshold) {
         lastAbove = heading.id;
       }
     });
-    
-    // 优先选视口内第一个
+
     activeId = firstInView || lastAbove;
   }
-  
+
   if (activeId) {
     tocContent.querySelectorAll('a').forEach(a => {
       a.classList.toggle('active', a.getAttribute('data-target') === activeId);
