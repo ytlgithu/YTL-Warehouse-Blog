@@ -448,7 +448,7 @@ function generateTOC() {
     });
   });
 
-  // 点击目录项滚动：立即高亮，阻止 auto-detect 覆盖
+  // 点击目录项：立即高亮，滚动时保持不变
   let clickedId = null;
   tocContent.querySelectorAll('a[data-target]').forEach(link => {
     link.addEventListener('click', function(e) {
@@ -460,65 +460,47 @@ function generateTOC() {
         tocContent.querySelectorAll('a').forEach(a => a.classList.remove('active'));
         this.classList.add('active');
         targetEl.scrollIntoView({ behavior: 'smooth' });
-        // 600ms 后自动释放锁，让后续滚动恢复 auto-detect
-        setTimeout(() => { clickedId = null; }, 600);
+        setTimeout(() => { clickedId = null; }, 800);
       }
     });
   });
   
-  // 滚动时更新目录高亮（跳过点击刚设置的高亮）
-  let scrollTimer = null;
-  window.addEventListener('scroll', function() {
-    if (scrollTimer) clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(function() {
-      updateActiveTOC(headings, tocContent, clickedId);
-    }, 100);
-  });
-}
-
-// 更新目录高亮：使用 getBoundingClientRect 精确定位
-function updateActiveTOC(headings, tocContent, lockedId) {
-  // 如果刚点击过，跳过 auto-detect（保持点击高亮）
-  if (lockedId) return;
-
-  const headerThreshold = 100;  // 标题顶部在此像素以内视为"已过"
-  const windowHeight = window.innerHeight;
-  const docHeight = document.documentElement.scrollHeight;
-  const scrollY = window.scrollY;
-
-  // 接近底部 → 选中最后一个标题
-  const isNearBottom = (scrollY + windowHeight) >= (docHeight - 80);
-
-  let activeId = null;
-
-  if (isNearBottom) {
-    activeId = headings[headings.length - 1].id;
+  // IntersectionObserver：精确监听每个标题何时进入视口
+  if ('IntersectionObserver' in window) {
+    let lastActiveId = null;
+    const io = new IntersectionObserver((entries) => {
+      if (clickedId) return; // 点击锁期间跳过
+      let bestEntry = null;
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          if (!bestEntry || entry.boundingClientRect.top < bestEntry.boundingClientRect.top) {
+            bestEntry = entry;
+          }
+        }
+      });
+      if (bestEntry) {
+        tocContent.querySelectorAll('a').forEach(a => {
+          a.classList.toggle('active', a.getAttribute('data-target') === bestEntry.target.id);
+        });
+      }
+    }, { rootMargin: '-80px 0px -60% 0px', threshold: 0 });
+    headings.forEach(h => io.observe(h));
   } else {
-    // 用 getBoundingClientRect 计算标题相对视口的位置
-    let firstInView = null;
-    let lastAbove = null;
-
-    headings.forEach(heading => {
-      const rect = heading.getBoundingClientRect();
-      // rect.top：标题顶部到视口顶部的距离（正值=在视口下方）
-      const top = rect.top;
-
-      // 标题顶部已进入视口（距顶部 < headerThreshold）
-      if (top >= 0 && top <= headerThreshold) {
-        if (!firstInView) firstInView = heading.id;
-      }
-      // 标题顶部已在视口上方（距顶部 > headerThreshold，即完全在视口内或上方）
-      if (top <= headerThreshold) {
-        lastAbove = heading.id;
-      }
-    });
-
-    activeId = firstInView || lastAbove;
-  }
-
-  if (activeId) {
-    tocContent.querySelectorAll('a').forEach(a => {
-      a.classList.toggle('active', a.getAttribute('data-target') === activeId);
+    // 降级：旧浏览器用滚动监听
+    let scrollTimer = null;
+    window.addEventListener('scroll', function() {
+      if (scrollTimer) clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(function() {
+        if (!clickedId) {
+          tocContent.querySelectorAll('a').forEach(a => {
+            const el = document.getElementById(a.getAttribute('data-target'));
+            if (el && el.getBoundingClientRect().top >= 0 && el.getBoundingClientRect().top <= 120) {
+              tocContent.querySelectorAll('a').forEach(x => x.classList.remove('active'));
+              a.classList.add('active');
+            }
+          });
+        }
+      }, 100);
     });
   }
 }
