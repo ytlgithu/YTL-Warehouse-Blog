@@ -455,10 +455,10 @@ function generateTOC() {
       const targetId = this.getAttribute('data-target');
       const targetEl = document.getElementById(targetId);
       if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'smooth' });
-        // 更新 active 状态
+        // 点击时立即高亮，不等滚动
         tocContent.querySelectorAll('a').forEach(a => a.classList.remove('active'));
         this.classList.add('active');
+        targetEl.scrollIntoView({ behavior: 'smooth' });
       }
     });
   });
