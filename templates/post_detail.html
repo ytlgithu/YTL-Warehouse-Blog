@@ -112,39 +112,39 @@
   border-left-color: #0366d6;
 }
 
-/* 可折叠标题通用样式 */
-.toc-content .toc-h1,
-.toc-content .toc-h2,
-.toc-content .toc-h3,
-.toc-content .toc-h4 {
+/* H1 - 可折叠的分组标题 */
+.toc-content .toc-group {
+  margin-bottom: 4px;
+}
+
+.toc-content .toc-h1 {
+  font-weight: 600;
+  font-size: 14px;
+  color: #24292e;
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-.toc-content .toc-h1::before { content: '▼'; font-size: 10px; margin-right: 6px; transition: transform 0.2s; color: #6a737d; }
-.toc-content .toc-h2::before { content: '▼'; font-size: 9px;  margin-right: 6px; transition: transform 0.2s; color: #6a737d; }
-.toc-content .toc-h3::before { content: '▶'; font-size: 9px;  margin-right: 6px; transition: transform 0.2s; color: #6a737d; }
-.toc-content .toc-h4::before { content: '▶'; font-size: 9px;  margin-right: 6px; transition: transform 0.2s; color: #6a737d; }
+.toc-content .toc-h1::before {
+  content: '▼';
+  font-size: 10px;
+  margin-right: 6px;
+  transition: transform 0.2s;
+  color: #6a737d;
+}
 
-.toc-content .toc-h1.collapsed::before,
-.toc-content .toc-h2.collapsed::before,
-.toc-content .toc-h3.collapsed::before,
-.toc-content .toc-h4.collapsed::before {
+.toc-content .toc-h1.collapsed::before {
   transform: rotate(-90deg);
 }
 
 .toc-content .toc-children {
   overflow: hidden;
   transition: max-height 0.3s ease;
-  max-height: 2000px;
 }
 
 .toc-content .toc-children.collapsed {
   max-height: 0 !important;
-  height: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
 }
 
 /* H2 - 正常大小，略缩进 */
@@ -374,80 +374,96 @@ if (el && el.dataset.raw) {
   generateTOC();
 }
 
-// 递归建树，支持任意层级折叠
-function buildTree(headings) {
-  const result = [];
-  let stack = [{ level: 0, children: result }];
-  headings.forEach((heading, index) => {
-    const level = parseInt(heading.tagName[1]);
-    heading.id = 'heading-' + index;
-    const item = { level, text: heading.textContent.trim(), id: heading.id, children: [] };
-    while (stack.length > 1 && stack[stack.length - 1].level >= level) stack.pop();
-    stack[stack.length - 1].children.push(item);
-    stack.push(item);
-  });
-  return result;
-}
-
-function renderTree(items) {
-  let html = '';
-  items.forEach(item => {
-    if (item.children.length > 0) {
-      html += `<div class="toc-group">`;
-      html += `<a href="#${item.id}" class="toc-h${item.level}" data-target="${item.id}">${item.text}</a>`;
-      html += `<div class="toc-children collapsed">`;
-      html += renderTree(item.children);
-      html += `</div></div>`;
-    } else {
-      html += `<a href="#${item.id}" class="toc-h${item.level}" data-target="${item.id}">${item.text}</a>`;
-    }
-  });
-  return html;
-}
-
+// 生成目录
 function generateTOC() {
   const headings = el.querySelectorAll('h1, h2, h3, h4, h5, h6');
   const tocContent = document.getElementById('tocContent');
   const tocNav = document.getElementById('postToc');
-  if (headings.length === 0) { tocNav.classList.add('hidden'); return; }
-
-  const tree = buildTree(headings);
-  tocContent.innerHTML = renderTree(tree);
-
-  // 点击有子项的标题行切换折叠
-  tocContent.querySelectorAll('.toc-group > .toc-h1, .toc-group > .toc-h2, .toc-group > .toc-h3, .toc-group > .toc-h4').forEach(link => {
-    link.addEventListener('click', function(e) {
-      e.preventDefault();
-      const children = this.nextElementSibling;
-      if (children && children.classList.contains('toc-children')) {
-        children.classList.toggle('collapsed');
-        this.classList.toggle('collapsed');
+  
+  if (headings.length === 0) {
+    tocNav.classList.add('hidden');
+    return;
+  }
+  
+  // 构建目录树结构
+  const tocTree = [];
+  let currentGroup = null;
+  
+  headings.forEach((heading, index) => {
+    const level = heading.tagName.toLowerCase();
+    const text = heading.textContent.trim();
+    const id = 'heading-' + index;
+    
+    // 给标题添加 id
+    heading.id = id;
+    
+    const item = { level, text, id, children: [] };
+    
+    if (level === 'h1') {
+      // H1 开始新分组
+      currentGroup = item;
+      tocTree.push(currentGroup);
+    } else if (currentGroup) {
+      // 子标题加入当前分组
+      currentGroup.children.push(item);
+    } else {
+      // 没有 H1 时的独立项
+      tocTree.push(item);
+    }
+  });
+  
+  // 渲染目录
+  let tocHTML = '';
+  tocTree.forEach(group => {
+    if (group.level === 'h1' && group.children.length > 0) {
+      // 有子项的 H1，可折叠
+      tocHTML += `<div class="toc-group">`;
+      tocHTML += `<a href="#${group.id}" class="toc-h1" data-target="${group.id}">${group.text}</a>`;
+      tocHTML += `<div class="toc-children">`;
+      group.children.forEach(child => {
+        tocHTML += `<a href="#${child.id}" class="toc-${child.level}" data-target="${child.id}">${child.text}</a>`;
+      });
+      tocHTML += `</div></div>`;
+    } else {
+      // 没有 H1 或没有子项
+      tocHTML += `<a href="#${group.id}" class="toc-${group.level}" data-target="${group.id}">${group.text}</a>`;
+    }
+  });
+  
+  tocContent.innerHTML = tocHTML;
+  
+  // 绑定折叠事件
+  tocContent.querySelectorAll('.toc-h1').forEach(h1 => {
+    h1.addEventListener('click', function(e) {
+      if (e.offsetX < 20) { // 点击箭头区域
+        e.preventDefault();
+        e.stopPropagation();
+        const children = this.nextElementSibling;
+        if (children && children.classList.contains('toc-children')) {
+          children.classList.toggle('collapsed');
+          this.classList.toggle('collapsed');
+        }
+        return;
       }
     });
   });
-
-  // 点击链接文字：展开自身+父链 -> 跳转 -> 高亮
+  
+  // 点击目录项滚动
   tocContent.querySelectorAll('a[data-target]').forEach(link => {
     link.addEventListener('click', function(e) {
-      const href = this.getAttribute('href');
-      if (!href || href === '#') return;
-      let parent = this.parentElement;
-      while (parent) {
-        if (parent.classList.contains('toc-children')) parent.classList.remove('collapsed');
-        parent = parent.parentElement;
-      }
-      const next = this.nextElementSibling;
-      if (next && next.classList.contains('toc-children')) next.classList.remove('collapsed');
-      this.classList.remove('collapsed'); // 箭头恢复展开状态
-      const targetEl = document.getElementById(this.getAttribute('data-target'));
+      e.preventDefault();
+      const targetId = this.getAttribute('data-target');
+      const targetEl = document.getElementById(targetId);
       if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        targetEl.scrollIntoView({ behavior: 'smooth' });
+        // 更新 active 状态
         tocContent.querySelectorAll('a').forEach(a => a.classList.remove('active'));
         this.classList.add('active');
       }
     });
   });
-
+  
+  // 滚动时更新目录高亮
   let ticking = false;
   window.addEventListener('scroll', function() {
     if (!ticking) {
