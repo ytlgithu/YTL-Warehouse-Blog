@@ -1194,65 +1194,65 @@ def sync_to_railway():
 
     results = []
     # --- 同步 Users ---
-    with db.session.begin():
-        users = User.query.all()
-        for u in users:
-            pg_cur.execute("""
-                INSERT INTO users (id, username, password_hash, avatar, role, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    username=EXCLUDED.username, avatar=EXCLUDED.avatar, role=EXCLUDED.role
-            """, (u.id, u.username, u.password_hash, u.avatar, u.role,
-                  u.created_at.replace(tzinfo=None) if u.created_at else None))
-        results.append(f'✅ 同步用户: {len(users)} 条')
+    users = User.query.all()
+    for u in users:
+        pg_cur.execute("""
+            INSERT INTO users (id, username, password_hash, avatar, is_admin, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                username=EXCLUDED.username, avatar=EXCLUDED.avatar,
+                is_admin=EXCLUDED.is_admin
+        """, (u.id, u.username, u.password_hash, u.avatar,
+              bool(u.is_admin) if u.is_admin is not None else False,
+              u.created_at.replace(tzinfo=None) if u.created_at else None))
+    results.append(f'✅ 同步用户: {len(users)} 条')
 
     # --- 同步 Categories ---
-    with db.session.begin():
-        cats = Category.query.all()
-        for c in cats:
-            pg_cur.execute("""
-                INSERT INTO categories (id, name, slug, description, "order")
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, slug=EXCLUDED.slug,
-                    description=EXCLUDED.description, "order"=EXCLUDED."order"
-            """, (c.id, c.name, c.slug, c.description, c.order))
-        results.append(f'✅ 同步分类: {len(cats)} 条')
+    cats = Category.query.all()
+    for c in cats:
+        pg_cur.execute("""
+            INSERT INTO categories (id, name, slug, description, sort_order)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, slug=EXCLUDED.slug,
+                description=EXCLUDED.description, sort_order=EXCLUDED.sort_order
+        """, (c.id, c.name, c.slug, c.description, c.order or 0))
+    results.append(f'✅ 同步分类: {len(cats)} 条')
 
     # --- 同步 Posts ---
-    with db.session.begin():
-        posts = Post.query.all()
-        for p in posts:
-            pg_cur.execute("""
-                INSERT INTO posts (id, title, slug, content, excerpt, category_id,
-                    author_id, is_public, view_count, tags, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    title=EXCLUDED.title, slug=EXCLUDED.slug, content=EXCLUDED.content,
-                    excerpt=EXCLUDED.excerpt, category_id=EXCLUDED.category_id,
-                    author_id=EXCLUDED.author_id, is_public=EXCLUDED.is_public,
-                    view_count=EXCLUDED.view_count, tags=EXCLUDED.tags,
-                    created_at=EXCLUDED.created_at, updated_at=EXCLUDED.updated_at
-            """, (p.id, p.title, p.slug, p.content, p.excerpt, p.category_id,
-                  p.author_id, bool(p.is_public) if p.is_public is not None else True,
-                  p.view_count or 0, p.tags,
-                  p.created_at.replace(tzinfo=None) if p.created_at else None,
-                  p.updated_at.replace(tzinfo=None) if p.updated_at else None))
-        results.append(f'✅ 同步文章: {len(posts)} 条')
+    posts = Post.query.all()
+    for p in posts:
+        pg_cur.execute("""
+            INSERT INTO posts (id, title, slug, content, excerpt, category_id,
+                user_id, is_public, view_count, tags, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                title=EXCLUDED.title, slug=EXCLUDED.slug, content=EXCLUDED.content,
+                excerpt=EXCLUDED.excerpt, category_id=EXCLUDED.category_id,
+                user_id=EXCLUDED.user_id, is_public=EXCLUDED.is_public,
+                view_count=EXCLUDED.view_count, tags=EXCLUDED.tags,
+                created_at=EXCLUDED.created_at, updated_at=EXCLUDED.updated_at
+        """, (p.id, p.title, p.slug, p.content, p.summary, p.category_id,
+              p.user_id, bool(p.is_public) if p.is_public is not None else True,
+              p.view_count or 0, p.tags,
+              p.created_at.replace(tzinfo=None) if p.created_at else None,
+              p.updated_at.replace(tzinfo=None) if p.updated_at else None))
+    results.append(f'✅ 同步文章: {len(posts)} 条')
 
     # --- 同步 Repos ---
-    with db.session.begin():
-        repos = Repo.query.all()
-        for r in repos:
-            pg_cur.execute("""
-                INSERT INTO repos (id, name, description, owner_id, is_public, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    name=EXCLUDED.name, description=EXCLUDED.description,
-                    is_public=EXCLUDED.is_public
-            """, (r.id, r.name, r.description, r.owner_id,
-                  bool(r.is_public) if r.is_public is not None else True,
-                  r.created_at.replace(tzinfo=None) if r.created_at else None))
-        results.append(f'✅ 同步仓库: {len(repos)} 条')
+    repos = Repo.query.all()
+    for r in repos:
+        pg_cur.execute("""
+            INSERT INTO repos (id, name, description, user_id, is_public, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                name=EXCLUDED.name, description=EXCLUDED.description,
+                is_public=EXCLUDED.is_public,
+                updated_at=EXCLUDED.updated_at
+        """, (r.id, r.name, r.description, r.user_id,
+              bool(r.is_public) if r.is_public is not None else True,
+              r.created_at.replace(tzinfo=None) if r.created_at else None,
+              r.updated_at.replace(tzinfo=None) if r.updated_at else None))
+    results.append(f'✅ 同步仓库: {len(repos)} 条')
 
     pg_conn.commit()
     pg_cur.close()
