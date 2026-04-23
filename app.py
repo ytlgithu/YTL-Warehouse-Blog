@@ -1161,6 +1161,108 @@ def category_delete(cat_id):
     return redirect(url_for('category_list'))
 
 
+# ========== 数据库同步（本地 SQLite → Railway PostgreSQL）==========
+@app.route('/admin/sync-to-railway', methods=['GET', 'POST'])
+@admin_required
+def sync_to_railway():
+    """同步本地 SQLite 数据到 Railway PostgreSQL
+    仅同步核心内容数据（users, posts, categories, repos）
+    Railway 部署后访问此端点即可一键同步
+    """
+    if request.method == 'GET':
+        return render_template('sync_to_railway.html')
+
+    try:
+        import psycopg2
+        from psycopg2 import extras
+    except ImportError:
+        flash('psycopg2 未安装，请联系管理员', 'danger')
+        return redirect(url_for('index'))
+
+    # Railway PostgreSQL 连接（使用环境变量）
+    db_url = os.environ.get('DATABASE_URL')
+    if not db_url or 'postgres.railway.internal' not in db_url:
+        flash('未检测到 Railway PostgreSQL（需要 postgres.railway.internal 地址）', 'danger')
+        return redirect(url_for('index'))
+
+    try:
+        pg_conn = psycopg2.connect(db_url)
+        pg_cur = pg_conn.cursor()
+    except Exception as e:
+        flash(f'连接 Railway PostgreSQL 失败: {e}', 'danger')
+        return redirect(url_for('index'))
+
+    results = []
+    # --- 同步 Users ---
+    with db.session.begin():
+        users = User.query.all()
+        for u in users:
+            pg_cur.execute("""
+                INSERT INTO users (id, username, password_hash, avatar, role, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    username=EXCLUDED.username, avatar=EXCLUDED.avatar, role=EXCLUDED.role
+            """, (u.id, u.username, u.password_hash, u.avatar, u.role,
+                  u.created_at.replace(tzinfo=None) if u.created_at else None))
+        results.append(f'✅ 同步用户: {len(users)} 条')
+
+    # --- 同步 Categories ---
+    with db.session.begin():
+        cats = Category.query.all()
+        for c in cats:
+            pg_cur.execute("""
+                INSERT INTO categories (id, name, slug, description, "order")
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, slug=EXCLUDED.slug,
+                    description=EXCLUDED.description, "order"=EXCLUDED."order"
+            """, (c.id, c.name, c.slug, c.description, c.order))
+        results.append(f'✅ 同步分类: {len(cats)} 条')
+
+    # --- 同步 Posts ---
+    with db.session.begin():
+        posts = Post.query.all()
+        for p in posts:
+            pg_cur.execute("""
+                INSERT INTO posts (id, title, slug, content, excerpt, category_id,
+                    author_id, is_public, view_count, tags, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    title=EXCLUDED.title, slug=EXCLUDED.slug, content=EXCLUDED.content,
+                    excerpt=EXCLUDED.excerpt, category_id=EXCLUDED.category_id,
+                    author_id=EXCLUDED.author_id, is_public=EXCLUDED.is_public,
+                    view_count=EXCLUDED.view_count, tags=EXCLUDED.tags,
+                    created_at=EXCLUDED.created_at, updated_at=EXCLUDED.updated_at
+            """, (p.id, p.title, p.slug, p.content, p.excerpt, p.category_id,
+                  p.author_id, bool(p.is_public) if p.is_public is not None else True,
+                  p.view_count or 0, p.tags,
+                  p.created_at.replace(tzinfo=None) if p.created_at else None,
+                  p.updated_at.replace(tzinfo=None) if p.updated_at else None))
+        results.append(f'✅ 同步文章: {len(posts)} 条')
+
+    # --- 同步 Repos ---
+    with db.session.begin():
+        repos = Repo.query.all()
+        for r in repos:
+            pg_cur.execute("""
+                INSERT INTO repos (id, name, description, owner_id, is_public, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    name=EXCLUDED.name, description=EXCLUDED.description,
+                    is_public=EXCLUDED.is_public
+            """, (r.id, r.name, r.description, r.owner_id,
+                  bool(r.is_public) if r.is_public is not None else True,
+                  r.created_at.replace(tzinfo=None) if r.created_at else None))
+        results.append(f'✅ 同步仓库: {len(repos)} 条')
+
+    pg_conn.commit()
+    pg_cur.close()
+    pg_conn.close()
+
+    for r in results:
+        flash(r, 'success')
+    return redirect(url_for('index'))
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)

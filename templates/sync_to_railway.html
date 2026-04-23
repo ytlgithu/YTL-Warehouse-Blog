@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>同步到 Railway</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 600px; margin: 60px auto; padding: 20px; }
+        .card { background: #f8f9fa; border-radius: 12px; padding: 30px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+        h1 { margin-top: 0; color: #333; }
+        .info { background: #e7f3ff; border-left: 4px solid #2196F3; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0; font-size: 14px; line-height: 1.8; }
+        .warn { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0; font-size: 14px; }
+        .btn { display: inline-block; background: #2196F3; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-size: 16px; cursor: pointer; border: none; }
+        .btn:hover { background: #1976D2; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+        .back { display: inline-block; margin-top: 20px; color: #666; text-decoration: none; font-size: 14px; }
+        .back:hover { color: #333; }
+        .check-list { margin: 20px 0; font-size: 14px; color: #555; }
+        .check-list li { margin: 8px 0; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🚀 同步到 Railway</h1>
+
+        <div class="info">
+            <strong>📌 工作原理</strong><br>
+            此功能将本地 SQLite 数据库中的 <strong>users / categories / posts / repos</strong> 数据同步到 Railway PostgreSQL。<br>
+            同步使用 <code>ON CONFLICT</code> 策略：记录已存在时更新，不存在时插入，不会覆盖 Railway 上的新数据。
+        </div>
+
+        <div class="warn">
+            <strong>⚠️ 注意事项</strong>
+            <ul class="check-list">
+                <li>此操作仅在 <strong>Railway 部署</strong>后执行才有意义（需要能访问 postgres.railway.internal）</li>
+                <li>本地调试时请勿点击，数据将在本地 SQLite 操作，不会影响 Railway</li>
+                <li>首次同步建议确认 Railway PostgreSQL 表结构已就绪</li>
+            </ul>
+        </div>
+
+        <form method="POST" onsubmit="return confirm('确认同步？将把本地数据同步到 Railway PostgreSQL。')">
+            <button type="submit" class="btn btn-danger">⚡ 开始同步</button>
+        </form>
+
+        <a href="/" class="back">← 返回首页</a>
+    </div>
+</body>
+</html>
