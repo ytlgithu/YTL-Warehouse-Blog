@@ -1179,10 +1179,10 @@ def sync_to_railway():
         flash('psycopg2 未安装，请联系管理员', 'danger')
         return redirect(url_for('index'))
 
-    # Railway PostgreSQL 连接（使用环境变量）
+    # Railway PostgreSQL 连接（使用环境变量，Railway 环境用公网代理格式）
     db_url = os.environ.get('DATABASE_URL')
-    if not db_url or 'postgres.railway.internal' not in db_url:
-        flash('未检测到 Railway PostgreSQL（需要 postgres.railway.internal 地址）', 'danger')
+    if not db_url or 'postgres' not in db_url.lower():
+        flash('未检测到 PostgreSQL 连接信息，请确保已正确配置环境变量', 'danger')
         return redirect(url_for('index'))
 
     try:
