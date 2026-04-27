@@ -1087,7 +1087,10 @@ def init_db():
 
 
 # Railway (Gunicorn) 启动时也执行
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print(f'[ERROR] init_db failed: {e}', file=sys.stderr)
 
 # ========== 分类管理（仅管理员）==========
 
