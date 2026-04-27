@@ -1368,6 +1368,29 @@ def admin_import():
     try:
         db.session.commit()
         flash('数据导入成功!', 'success')
+        # 重置 PostgreSQL 序列（导入数据后序列不同步会导致 duplicate key 错误）
+        try:
+            db_uri = os.environ.get('DATABASE_URL', '')
+            if db_uri and ('postgresql' in db_uri or 'postgres' in db_uri):
+                tables_seqs = [
+                    ('users', 'users_id_seq'),
+                    ('categories', 'categories_id_seq'),
+                    ('posts', 'posts_id_seq'),
+                    ('repos', 'repos_id_seq'),
+                    ('repo_files', 'repo_files_id_seq'),
+                    ('operation_log', 'operation_log_id_seq'),
+                    ('message', 'message_id_seq'),
+                ]
+                for tbl, seq in tables_seqs:
+                    try:
+                        max_id = db.session.execute(db.text(f'SELECT COALESCE(MAX(id), 0) FROM {tbl}')).scalar()
+                        db.session.execute(db.text(f"SELECT setval('{seq}', {max_id})"))
+                    except Exception:
+                        pass
+                db.session.commit()
+                flash('  🔧 PostgreSQL 序列已重置', 'success')
+        except Exception as seq_err:
+            flash(f'  ⚠️ 序列重置失败(不影响数据): {seq_err}', 'warning')
     except Exception as e:
         db.session.rollback()
         flash(f'导入失败(已回滚): {e}', 'danger')
