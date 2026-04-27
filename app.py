@@ -1083,6 +1083,32 @@ def init_db():
             if not Category.query.filter_by(slug=c['slug']).first():
                 db.session.add(Category(**c))
         db.session.commit()
+
+        # 自动重置 PostgreSQL 序列（防止 UniqueViolation）
+        db_uri = os.environ.get('DATABASE_URL', '')
+        if db_uri and ('postgresql' in db_uri or 'postgres' in db_uri):
+            tables_seqs = [
+                ('users', 'users_id_seq'),
+                ('categories', 'categories_id_seq'),
+                ('posts', 'posts_id_seq'),
+                ('repos', 'repos_id_seq'),
+                ('repo_files', 'repo_files_id_seq'),
+                ('operation_logs', 'operation_logs_id_seq'),
+                ('messages', 'messages_id_seq'),
+            ]
+            for tbl, seq in tables_seqs:
+                try:
+                    max_id = db.session.execute(db.text(f'SELECT COALESCE(MAX(id), 0) FROM {tbl}')).scalar()
+                    if max_id > 0:
+                        db.session.execute(db.text(f"SELECT setval('{seq}', {max_id})"))
+                        print(f'[SEQ] {seq} reset to {max_id}')
+                except Exception as e:
+                    print(f'[SEQ] {seq} skip: {e}')
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
         print('[INFO] Database ready')
 
 
@@ -1381,8 +1407,8 @@ def admin_import():
                     ('posts', 'posts_id_seq'),
                     ('repos', 'repos_id_seq'),
                     ('repo_files', 'repo_files_id_seq'),
-                    ('operation_log', 'operation_log_id_seq'),
-                    ('message', 'message_id_seq'),
+                    ('operation_logs', 'operation_logs_id_seq'),
+                    ('messages', 'messages_id_seq'),
                 ]
                 for tbl, seq in tables_seqs:
                     try:
