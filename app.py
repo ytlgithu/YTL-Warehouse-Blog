@@ -1161,111 +1161,213 @@ def category_delete(cat_id):
     return redirect(url_for('category_list'))
 
 
-# ========== 数据库同步（本地 SQLite → Railway PostgreSQL）==========
-@app.route('/admin/sync-to-railway', methods=['GET', 'POST'])
+# ========== 数据导出/导入（JSON文件方案）==========
+
+@app.route('/admin/export', methods=['GET'])
 @admin_required
-def sync_to_railway():
-    """同步本地 SQLite 数据到 Railway PostgreSQL
-    仅同步核心内容数据（users, posts, categories, repos）
-    Railway 部署后访问此端点即可一键同步
-    """
+def admin_export():
+    """导出本地数据为 JSON 文件下载"""
+    from flask import Response
+    import json as _json
+    from datetime import datetime as _dt
+
+    def _ser(obj):
+        if hasattr(obj, 'isoformat'):
+            return obj.isoformat()
+        raise TypeError(f'Type {type(obj)} not serializable')
+
+    data = {}
+
+    # Users
+    data['users'] = [{
+        'id': u.id, 'username': u.username,
+        'email': u.email or '', 'password_hash': u.password_hash,
+        'avatar': u.avatar or '',
+        'is_admin': bool(u.is_admin) if u.is_admin is not None else False,
+        'created_at': u.created_at, 'last_login': u.last_login
+    } for u in User.query.all()]
+
+    # Categories
+    data['categories'] = [{
+        'id': c.id, 'name': c.name, 'slug': c.slug or '',
+        'description': c.description or '',
+        'order': c.order if hasattr(c, 'order') else 0,
+        'created_at': c.created_at
+    } for c in Category.query.all()]
+
+    # Posts
+    data['posts'] = [{
+        'id': p.id, 'title': p.title, 'content': p.content,
+        'summary': p.summary if hasattr(p, 'summary') else '',
+        'tags': p.tags or '',
+        'is_public': bool(p.is_public) if p.is_public is not None else True,
+        'category_id': p.category_id, 'user_id': p.user_id,
+        'view_count': p.view_count or 0,
+        'created_at': p.created_at, 'updated_at': p.updated_at
+    } for p in Post.query.all()]
+
+    # Repos
+    data['repos'] = [{
+        'id': r.id, 'name': r.name, 'description': r.description or '',
+        'is_public': bool(r.is_public) if r.is_public is not None else True,
+        'user_id': r.user_id,
+        'created_at': r.created_at, 'updated_at': r.updated_at
+    } for r in Repo.query.all()]
+
+    # Messages
+    try:
+        data['messages'] = [{
+            'id': m.id, 'user_id': m.user_id, 'username': m.username or '',
+            'content': m.content or '', 'created_at': m.created_at
+        } for m in Message.query.all()]
+    except Exception:
+        data['messages'] = []
+
+    # OperationLogs
+    try:
+        data['operation_logs'] = [{
+            'id': l.id, 'user_id': l.user_id, 'username': l.username or '',
+            'action': l.action or '', 'target': l.target or '',
+            'detail': l.detail or '', 'ip_address': l.ip_address or '',
+            'created_at': l.created_at
+        } for l in OperationLog.query.all()]
+    except Exception:
+        data['operation_logs'] = []
+
+    json_str = _json.dumps(data, ensure_ascii=False, indent=2, default=_ser)
+    filename = f'blog_export_{_dt.now().strftime("%Y%m%d_%H%M%S")}.json'
+
+    flash(f'导出成功: {len(data["users"])}用户 {len(data["categories"])}分类 {len(data["posts"])}文章 {len(data["repos"])}仓库', 'success')
+    return Response(json_str, mimetype='application/json',
+                    headers={'Content-Disposition': f'attachment; filename={filename}'})
+
+
+@app.route('/admin/import', methods=['GET', 'POST'])
+@admin_required
+def admin_import():
+    """从上传的 JSON 文件导入数据到当前数据库"""
+    import json as _json
+
     if request.method == 'GET':
-        return render_template('sync_to_railway.html')
+        return render_template('import_data.html')
+
+    file = request.files.get('json_file')
+    if not file or not file.filename.endswith('.json'):
+        flash('请上传 .json 文件', 'danger')
+        return redirect(url_for('admin_import'))
 
     try:
-        import psycopg2
-        from psycopg2 import extras
-    except ImportError:
-        flash('psycopg2 未安装，请联系管理员', 'danger')
-        return redirect(url_for('index'))
-
-    # Railway PostgreSQL 连接（使用环境变量，Railway 环境用公网代理格式）
-    db_url = os.environ.get('DATABASE_URL')
-    if not db_url or 'postgres' not in db_url.lower():
-        flash('未检测到 PostgreSQL 连接信息，请确保已正确配置环境变量', 'danger')
-        return redirect(url_for('index'))
-
-    try:
-        pg_conn = psycopg2.connect(db_url)
-        pg_cur = pg_conn.cursor()
+        raw = file.read().decode('utf-8')
+        data = _json.loads(raw)
     except Exception as e:
-        flash(f'连接 Railway PostgreSQL 失败: {e}', 'danger')
-        return redirect(url_for('index'))
+        flash(f'JSON解析失败: {e}', 'danger')
+        return redirect(url_for('admin_import'))
 
     results = []
-    # --- 同步 Users ---
-    users = User.query.all()
-    for u in users:
-        # 处理可能为空的字段
-        email_val = u.email if u.email else f'no-email-{u.id}@local'
-        pg_cur.execute("""
-            INSERT INTO users (id, username, email, password_hash, avatar, is_admin, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (id) DO UPDATE SET
-                username=EXCLUDED.username, email=EXCLUDED.email,
-                avatar=EXCLUDED.avatar, is_admin=EXCLUDED.is_admin
-        """, (u.id, u.username, email_val, u.password_hash,
-              u.avatar or '',
-              bool(u.is_admin) if u.is_admin is not None else False,
-              u.created_at.replace(tzinfo=None) if u.created_at else None))
-    results.append(f'✅ 同步用户: {len(users)} 条')
+    errors = []
 
-    # --- 同步 Categories ---
-    cats = Category.query.all()
-    for c in cats:
-        pg_cur.execute("""
-            INSERT INTO categories (id, name, slug, description, "order")
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, slug=EXCLUDED.slug,
-                description=EXCLUDED.description, "order"=EXCLUDED."order"
-        """, (c.id, c.name, c.slug, c.description, c.order if hasattr(c, 'order') else 0))
-    results.append(f'✅ 同步分类: {len(cats)} 条')
+    def _do_import(model, items, field_map):
+        """通用导入: field_map=dict(json_key=model_attr)"""
+        count = 0
+        for item in items:
+            try:
+                obj = model.query.get(item.get('id'))
+                if obj:
+                    for jk, ma in field_map.items():
+                        if jk in item:
+                            setattr(obj, ma, item[jk])
+                else:
+                    kwargs = {ma: item[jk] for jk, ma in field_map.items() if jk in item}
+                    obj = model(**kwargs)
+                    db.session.add(obj)
+                count += 1
+            except Exception as ex:
+                errors.append(f'{model.__name__} id={item.get("id")}: {ex}')
+        return count
 
-    # --- 同步 Posts ---
-    posts = Post.query.all()
-    for p in posts:
-        pg_cur.execute("""
-            INSERT INTO posts (id, title, content, summary, category_id,
-                user_id, is_public, view_count, tags, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (id) DO UPDATE SET
-                title=EXCLUDED.title, content=EXCLUDED.content, summary=EXCLUDED.summary,
-                category_id=EXCLUDED.category_id,
-                user_id=EXCLUDED.user_id, is_public=EXCLUDED.is_public,
-                view_count=EXCLUDED.view_count, tags=EXCLUDED.tags,
-                created_at=EXCLUDED.created_at, updated_at=EXCLUDED.updated_at
-        """, (p.id, p.title, p.content,
-              p.summary if hasattr(p, 'summary') else '',
-              p.category_id,
-              p.user_id, bool(p.is_public) if p.is_public is not None else True,
-              p.view_count or 0, p.tags,
-              p.created_at.replace(tzinfo=None) if p.created_at else None,
-              p.updated_at.replace(tzinfo=None) if p.updated_at else None))
-    results.append(f'✅ 同步文章: {len(posts)} 条')
+    # Users
+    try:
+        n = _do_import(User, data.get('users', []), {
+            'id': 'id', 'username': 'username', 'email': 'email',
+            'password_hash': 'password_hash', 'avatar': 'avatar',
+            'is_admin': 'is_admin', 'created_at': 'created_at',
+            'last_login': 'last_login'
+        })
+        results.append(f'用户: {n}条')
+    except Exception as e:
+        errors.append(f'用户导入失败: {e}')
 
-    # --- 同步 Repos ---
-    repos = Repo.query.all()
-    for r in repos:
-        pg_cur.execute("""
-            INSERT INTO repos (id, name, description, user_id, is_public, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (id) DO UPDATE SET
-                name=EXCLUDED.name, description=EXCLUDED.description,
-                is_public=EXCLUDED.is_public,
-                updated_at=EXCLUDED.updated_at
-        """, (r.id, r.name, r.description, r.user_id,
-              bool(r.is_public) if r.is_public is not None else True,
-              r.created_at.replace(tzinfo=None) if r.created_at else None,
-              r.updated_at.replace(tzinfo=None) if r.updated_at else None))
-    results.append(f'✅ 同步仓库: {len(repos)} 条')
+    # Categories
+    try:
+        n = _do_import(Category, data.get('categories', []), {
+            'id': 'id', 'name': 'name', 'slug': 'slug',
+            'description': 'description', 'order': 'order',
+            'created_at': 'created_at'
+        })
+        results.append(f'分类: {n}条')
+    except Exception as e:
+        errors.append(f'分类导入失败: {e}')
 
-    pg_conn.commit()
-    pg_cur.close()
-    pg_conn.close()
+    # Posts
+    try:
+        n = _do_import(Post, data.get('posts', []), {
+            'id': 'id', 'title': 'title', 'content': 'content',
+            'summary': 'summary', 'tags': 'tags', 'is_public': 'is_public',
+            'category_id': 'category_id', 'user_id': 'user_id',
+            'view_count': 'view_count', 'created_at': 'created_at',
+            'updated_at': 'updated_at'
+        })
+        results.append(f'文章: {n}条')
+    except Exception as e:
+        errors.append(f'文章导入失败: {e}')
+
+    # Repos
+    try:
+        n = _do_import(Repo, data.get('repos', []), {
+            'id': 'id', 'name': 'name', 'description': 'description',
+            'is_public': 'is_public', 'user_id': 'user_id',
+            'created_at': 'created_at', 'updated_at': 'updated_at'
+        })
+        results.append(f'仓库: {n}条')
+    except Exception as e:
+        errors.append(f'仓库导入失败: {e}')
+
+    # Messages
+    try:
+        n = _do_import(Message, data.get('messages', []), {
+            'id': 'id', 'user_id': 'user_id', 'username': 'username',
+            'content': 'content', 'created_at': 'created_at'
+        })
+        results.append(f'留言: {n}条')
+    except Exception:
+        pass
+
+    # OperationLogs
+    try:
+        n = _do_import(OperationLog, data.get('operation_logs', []), {
+            'id': 'id', 'user_id': 'user_id', 'username': 'username',
+            'action': 'action', 'target': 'target', 'detail': 'detail',
+            'ip_address': 'ip_address', 'created_at': 'created_at'
+        })
+        results.append(f'操作日志: {n}条')
+    except Exception:
+        pass
+
+    try:
+        db.session.commit()
+        flash('数据导入成功!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'导入失败(已回滚): {e}', 'danger')
 
     for r in results:
-        flash(r, 'success')
-    return redirect(url_for('index'))
+        flash(f'  ✅ {r}', 'success')
+    for e in errors:
+        flash(f'  ❌ {e}', 'danger')
+
+    return redirect(url_for('admin_import'))
+
+
 
 
 if __name__ == '__main__':

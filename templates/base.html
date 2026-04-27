@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -36,7 +36,7 @@
             <a href="{{ url_for('category_list') }}">📂 分类管理</a>
             <a href="{{ url_for('user_list') }}">👥 用户管理</a>
             <a href="{{ url_for('operation_log') }}">📋 操作日志</a>
-            <a href="{{ url_for('sync_to_railway') }}" style="color:#e74c3c;">🚀 同步Railway</a>
+            <a href="{{ url_for('admin_export') }}" style="color:#e74c3c;">📦 导出/导入</a>
           </div>
         </div>
         {% endif %}
@@ -100,3 +100,4 @@ document.addEventListener('click', () => {
 </script>
 </body>
 </html>
+

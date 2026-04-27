@@ -1,0 +1,37 @@
+﻿{% extends "base.html" %}
+{% block title %}数据导入 - 管理后台{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>📦 数据导入/导出</h2>
+        <div style="margin-top: 10px;">
+            <a href="{{ url_for('admin_export') }}" class="btn btn-primary" style="margin-right: 10px;">⬇️ 导出数据(JSON)</a>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+        <h3 style="margin-bottom: 15px;">📤 从 JSON 文件导入数据</h3>
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; color: #555;">
+            <p><strong>使用步骤：</strong></p>
+            <ol>
+                <li>在本地博客系统点击「导出数据」下载 JSON 文件</li>
+                <li>在 Railway 部署的博客管理后台打开此页面</li>
+                <li>选择刚才导出的 JSON 文件并上传</li>
+                <li>系统会自动将数据写入 Railway PostgreSQL 数据库</li>
+            </ol>
+            <p style="color: #e74c3c; margin-top: 10px;">⚠️ 导入会覆盖相同 ID 的数据，请谨慎操作</p>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data">
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight: bold; display: block; margin-bottom: 8px;">选择 JSON 文件：</label>
+                <input type="file" name="json_file" accept=".json" required
+                    style="padding: 10px; border: 2px dashed #ddd; border-radius: 8px; width: 100%; max-width: 400px; cursor: pointer;">
+            </div>
+            <button type="submit" class="btn btn-success">📤 开始导入</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
