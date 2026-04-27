@@ -1266,8 +1266,18 @@ def admin_import():
     results = []
     errors = []
 
+    from datetime import datetime as _dt
+    _datetime_fields = {'created_at', 'updated_at', 'last_login'}
+
+    def _parse_val(v, key):
+        if isinstance(v, str) and key in _datetime_fields:
+            try:
+                return _dt.fromisoformat(v)
+            except (ValueError, TypeError):
+                return None
+        return v
+
     def _do_import(model, items, field_map):
-        """通用导入: field_map=dict(json_key=model_attr)"""
         count = 0
         for item in items:
             try:
@@ -1275,13 +1285,15 @@ def admin_import():
                 if obj:
                     for jk, ma in field_map.items():
                         if jk in item:
-                            setattr(obj, ma, item[jk])
+                            setattr(obj, ma, _parse_val(item[jk], jk))
                 else:
-                    kwargs = {ma: item[jk] for jk, ma in field_map.items() if jk in item}
+                    kwargs = {ma: _parse_val(item[jk], jk) for jk, ma in field_map.items() if jk in item}
                     obj = model(**kwargs)
                     db.session.add(obj)
+                db.session.flush()
                 count += 1
             except Exception as ex:
+                db.session.rollback()
                 errors.append(f'{model.__name__} id={item.get("id")}: {ex}')
         return count
 
