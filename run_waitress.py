@@ -10,11 +10,11 @@ if __name__ == '__main__':
     if not os.environ.get('SYNC_TOKEN'):
         os.environ['SYNC_TOKEN'] = 'ytl-sync-2026-secret'
     if not os.environ.get('SYNC_INTERVAL'):
-        os.environ['SYNC_INTERVAL'] = '60'
+        os.environ['SYNC_INTERVAL'] = '10'
     # 重新加载 app config（确保环境变量生效）
     app.config['SYNC_PEER_URL'] = os.environ.get('SYNC_PEER_URL', '')
     app.config['SYNC_TOKEN'] = os.environ.get('SYNC_TOKEN', '')
-    app.config['SYNC_INTERVAL'] = int(os.environ.get('SYNC_INTERVAL', '60'))
+    app.config['SYNC_INTERVAL'] = int(os.environ.get('SYNC_INTERVAL', '10'))
     # 设置 2GB 限制
     max_size = 2 * 1024 * 1024 * 1024  # 2GB
 

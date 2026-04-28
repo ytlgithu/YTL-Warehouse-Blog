@@ -1711,7 +1711,7 @@ def _run_sync_loop():
     
     peer_url = os.environ.get('SYNC_PEER_URL', '')  # 远端地址，如 https://xxx.up.railway.app
     sync_token = SYNC_TOKEN
-    interval = int(os.environ.get('SYNC_INTERVAL', '60'))  # 秒
+    interval = int(os.environ.get('SYNC_INTERVAL', '10'))  # 秒
     
     if not peer_url:
         print('[SYNC] No SYNC_PEER_URL set, sync thread disabled')
