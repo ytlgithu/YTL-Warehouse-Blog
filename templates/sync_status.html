@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}同步状态 - 管理后台{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>🔄 数据同步状态</h2>
+        <p style="color: #666; margin-top: 8px;">本地与远端数据库双向自动同步</p>
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+        <h3 style="margin-bottom: 15px;">📡 同步配置</h3>
+        <table class="data-table" style="width: 100%;">
+            <tr>
+                <td style="font-weight: bold; width: 180px;">同步 Token</td>
+                <td><code>{{ config_token }}</code></td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">远端地址</td>
+                <td><code>{{ peer_url or '未配置' }}</code></td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">同步间隔</td>
+                <td>{{ sync_interval }}秒</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+        <h3 style="margin-bottom: 15px;">📊 同步状态</h3>
+        {% if states %}
+        <table class="data-table" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th>远端地址</th>
+                    <th>上次同步时间</th>
+                    <th>状态</th>
+                    <th>消息</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in states %}
+                <tr>
+                    <td><code>{{ s.peer_url }}</code></td>
+                    <td>{{ s.last_sync_at.strftime('%Y-%m-%d %H:%M:%S') if s.last_sync_at else '从未同步' }}</td>
+                    <td>
+                        {% if s.last_status == 'success' %}
+                        <span style="color: #27ae60; font-weight: bold;">✅ 成功</span>
+                        {% elif s.last_status == 'error' %}
+                        <span style="color: #e74c3c; font-weight: bold;">❌ 失败</span>
+                        {% else %}
+                        <span style="color: #999;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ s.last_message or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: #999; text-align: center; padding: 30px;">
+            尚无同步记录。<br>
+            <small>请设置环境变量 <code>SYNC_PEER_URL</code> 指向远端地址后重启服务。</small>
+        </p>
+        {% endif %}
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+        <h3 style="margin-bottom: 15px;">📝 使用说明</h3>
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-size: 14px; color: #555;">
+            <p><strong>本地服务配置：</strong></p>
+            <ol>
+                <li>设置环境变量 <code>SYNC_PEER_URL=https://你的railway地址.up.railway.app</code></li>
+                <li>设置环境变量 <code>SYNC_TOKEN=你的密钥</code>（本地和远端需一致）</li>
+                <li>设置环境变量 <code>SYNC_INTERVAL=60</code>（同步间隔秒数，默认60）</li>
+                <li>重启本地服务，后台线程自动启动</li>
+            </ol>
+            <p style="margin-top: 10px;"><strong>Railway 端配置：</strong></p>
+            <ol>
+                <li>在 Railway Variables 中添加 <code>SYNC_TOKEN</code>（与本地一致）</li>
+                <li>Railway 端无需设置 <code>SYNC_PEER_URL</code>（由本地主动发起同步）</li>
+            </ol>
+            <p style="color: #e74c3c; margin-top: 10px;">⚠️ 同步采用"最后写入胜出"策略，请避免两端同时编辑同一条数据</p>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <a href="{{ url_for('admin_import') }}" class="btn btn-primary">📦 导出/导入</a>
+    </div>
+</div>
+{% endblock %}

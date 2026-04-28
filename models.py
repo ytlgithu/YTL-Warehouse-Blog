@@ -263,6 +263,26 @@ class OperationLog(db.Model):
     created_at = db.Column(db.DateTime, default=cn_now, index=True)
 
 
+class SyncState(db.Model):
+    """同步状态：记录与远端最后一次同步的时间"""
+    __tablename__ = 'sync_state'
+    id = db.Column(db.Integer, primary_key=True)
+    peer_url = db.Column(db.String(256), unique=True, nullable=False)  # 远端地址
+    last_sync_at = db.Column(db.DateTime, default=cn_now)  # 上次同步时间
+    last_status = db.Column(db.String(20), default='')  # success / error
+    last_message = db.Column(db.String(500), default='')  # 状态消息
+    updated_at = db.Column(db.DateTime, default=cn_now, onupdate=cn_now)
+
+
+class SyncDeletion(db.Model):
+    """同步删除记录：记录被删除的记录，以便同步到远端"""
+    __tablename__ = 'sync_deletions'
+    id = db.Column(db.Integer, primary_key=True)
+    table_name = db.Column(db.String(80), nullable=False, index=True)  # 表名
+    record_id = db.Column(db.Integer, nullable=False)  # 被删除记录的ID
+    deleted_at = db.Column(db.DateTime, default=cn_now, index=True)  # 删除时间
+
+
 class Message(db.Model):
     """留言板"""
     __tablename__ = 'messages'

@@ -15,7 +15,7 @@ def cn_now():
     return datetime.now(CN_TIMEZONE)
 
 from config import Config
-from models import db, User, Repo, RepoFile, Post, OperationLog, Category, Message
+from models import db, User, Repo, RepoFile, Post, OperationLog, Category, Message, SyncState, SyncDeletion
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -624,6 +624,7 @@ def repo_file_delete(repo_id, file_id):
         db_prefix = rf.path[:rf.path.find('/') + 1]
         if parent.startswith(db_prefix):
             parent = parent[len(db_prefix):]
+    log_deletion(rf)
     db.session.delete(rf)
     db.session.commit()
     log_operation('delete_file', target=f'仓库:{repo.name}', detail=f'删除 {rf.filename}')
@@ -668,6 +669,7 @@ def repo_folder_delete(repo_id):
         fpath = os.path.join(upload_dir, rf.stored_name)
         if os.path.exists(fpath):
             os.remove(fpath)
+        log_deletion(rf)
         db.session.delete(rf)
     
     db.session.commit()
@@ -707,6 +709,7 @@ def repo_delete(repo_id):
     upload_dir = repo_upload_dir(repo_id)
     if os.path.exists(upload_dir):
         shutil.rmtree(upload_dir)
+    log_deletion(repo)
     db.session.delete(repo)
     db.session.commit()
     flash(f'仓库 {repo.name} 已删除', 'success')
@@ -799,6 +802,7 @@ def post_delete(post_id):
     if post.user_id != session['user_id'] and not session.get('is_admin'):
         flash('无权限', 'danger')
         return redirect(url_for('post_list'))
+    log_deletion(post)
     db.session.delete(post)
     db.session.commit()
     log_operation('delete_post', target=f'文章:{post.title}', detail='删除文章')
@@ -968,6 +972,18 @@ def log_operation(action, target='', detail='', user_id=None):
             db.session.commit()
 
 
+def log_deletion(obj):
+    """记录删除操作到 SyncDeletion 表，用于双向同步"""
+    try:
+        table_name = obj.__tablename__
+        record_id = obj.id
+        sd = SyncDeletion(table_name=table_name, record_id=record_id)
+        db.session.add(sd)
+        # 不 commit，由调用方统一 commit
+    except Exception:
+        pass  # 同步删除记录非关键，静默失败
+
+
 # ── 操作日志页面 ───────────────────────────────────────────────────────────────
 
 @app.route('/admin/logs')
@@ -1051,6 +1067,7 @@ def delete_message(msg_id):
     if msg.user_id != u.id and not u.is_admin:
         flash('无权删除他人留言', 'danger')
         return redirect(url_for('message_board'))
+    log_deletion(msg)
     db.session.delete(msg)
     db.session.commit()
     log_operation('delete_message', target='留言板', detail='删除留言')
@@ -1183,6 +1200,7 @@ def category_delete(cat_id):
     if cat.posts.count() > 0:
         flash(f'分类「{name}」下有文章，无法删除', 'danger')
         return redirect(url_for('category_list'))
+    log_deletion(cat)
     db.session.delete(cat)
     db.session.commit()
     log_operation('category_delete', target=f'分类:{name}', detail=f'删除分类「{name}」')
@@ -1432,6 +1450,300 @@ def admin_import():
     return redirect(url_for('admin_import'))
 
 
+
+
+# ========== 数据同步 API（双向自动同步）==========
+
+# 同步认证 token（两端必须一致）
+SYNC_TOKEN = os.environ.get('SYNC_TOKEN', 'ytl-sync-2026-secret')
+
+# 同步的数据表配置：表名 → (模型类, 时间字段名)
+SYNC_TABLES = [
+    ('users', User, 'created_at'),
+    ('categories', Category, 'created_at'),
+    ('posts', Post, 'updated_at'),
+    ('repos', Repo, 'updated_at'),
+    ('repo_files', RepoFile, 'updated_at'),
+    ('messages', Message, 'created_at'),
+    ('operation_logs', OperationLog, 'created_at'),
+]
+
+
+def _sync_auth():
+    """验证同步请求的 token"""
+    token = request.headers.get('X-Sync-Token', '') or request.args.get('token', '')
+    if token != SYNC_TOKEN:
+        abort(403, description='Invalid sync token')
+
+
+def _ser_model(obj, fields):
+    """序列化一个模型实例为字典"""
+    result = {}
+    for f in fields:
+        v = getattr(obj, f, None)
+        if v is not None and hasattr(v, 'isoformat'):
+            v = v.isoformat()
+        result[f] = v
+    return result
+
+
+# 每个表的字段映射
+SYNC_FIELDS = {
+    'users': ['id', 'username', 'email', 'password_hash', 'avatar', 'is_admin', 'created_at', 'last_login'],
+    'categories': ['id', 'name', 'slug', 'description', 'order', 'created_at'],
+    'posts': ['id', 'title', 'content', 'summary', 'tags', 'is_public', 'category_id', 'user_id', 'view_count', 'created_at', 'updated_at'],
+    'repos': ['id', 'name', 'description', 'is_public', 'user_id', 'created_at', 'updated_at'],
+    'repo_files': ['id', 'repo_id', 'path', 'stored_name', 'file_size', 'md5_hash', 'upload_user_id', 'created_at', 'updated_at'],
+    'messages': ['id', 'user_id', 'username', 'content', 'created_at'],
+    'operation_logs': ['id', 'user_id', 'username', 'action', 'target', 'detail', 'ip_address', 'created_at'],
+}
+
+
+@app.route('/api/sync', methods=['GET'])
+def api_sync_pull():
+    """返回自给定时间戳以来的所有变更（供远端拉取）
+    
+    参数:
+      since - ISO8601 时间戳，返回此时间之后的变更
+      token - 认证 token
+    """
+    _sync_auth()
+    
+    since_str = request.args.get('since', '')
+    since = None
+    if since_str:
+        try:
+            since = datetime.fromisoformat(since_str)
+        except (ValueError, TypeError):
+            abort(400, description='Invalid since timestamp')
+    
+    result = {'changes': {}, 'deletions': []}
+    
+    # 查询各表变更
+    for table_name, model_cls, time_field in SYNC_TABLES:
+        query = model_cls.query
+        if since:
+            col = getattr(model_cls, time_field)
+            query = query.filter(col > since)
+        records = query.all()
+        fields = SYNC_FIELDS.get(table_name, [])
+        if records:
+            result['changes'][table_name] = [_ser_model(r, fields) for r in records]
+    
+    # 查询删除记录
+    del_query = SyncDeletion.query
+    if since:
+        del_query = del_query.filter(SyncDeletion.deleted_at > since)
+    deletions = del_query.all()
+    result['deletions'] = [{
+        'table_name': d.table_name,
+        'record_id': d.record_id,
+        'deleted_at': d.deleted_at.isoformat() if d.deleted_at else None
+    } for d in deletions]
+    
+    return jsonify(result)
+
+
+@app.route('/api/sync/apply', methods=['POST'])
+def api_sync_apply():
+    """应用远端推送的变更"""
+    _sync_auth()
+    
+    import json as _json
+    data = request.get_json(force=True)
+    if not data:
+        return jsonify({'status': 'error', 'message': 'No data'}), 400
+    
+    _datetime_fields = {'created_at', 'updated_at', 'last_login'}
+    
+    def _parse_val(v, key):
+        if isinstance(v, str) and key in _datetime_fields:
+            try:
+                return datetime.fromisoformat(v)
+            except (ValueError, TypeError):
+                return None
+        return v
+    
+    results = {'applied': 0, 'errors': []}
+    
+    # 构建表名 → 模型类 的映射
+    model_map = {t: m for t, m, _ in SYNC_TABLES}
+    
+    # 应用变更
+    changes = data.get('changes', {})
+    for table_name, records in changes.items():
+        model_cls = model_map.get(table_name)
+        if not model_cls:
+            continue
+        fields = SYNC_FIELDS.get(table_name, [])
+        for item in records:
+            try:
+                obj = model_cls.query.get(item.get('id'))
+                if obj:
+                    # 更新已有记录
+                    for f in fields:
+                        if f in item and f != 'id':
+                            setattr(obj, f, _parse_val(item[f], f))
+                else:
+                    # 创建新记录
+                    kwargs = {f: _parse_val(item[f], f) for f in fields if f in item}
+                    obj = model_cls(**kwargs)
+                    db.session.add(obj)
+                db.session.flush()
+                results['applied'] += 1
+            except Exception as ex:
+                db.session.rollback()
+                results['errors'].append(f'{table_name} id={item.get("id")}: {ex}')
+    
+    # 应用删除
+    deletions = data.get('deletions', [])
+    for d in deletions:
+        table_name = d.get('table_name')
+        record_id = d.get('record_id')
+        model_cls = model_map.get(table_name)
+        if not model_cls or not record_id:
+            continue
+        try:
+            obj = model_cls.query.get(record_id)
+            if obj:
+                db.session.delete(obj)
+                db.session.flush()
+                results['applied'] += 1
+            # 删除本地的 SyncDeletion 记录（已应用）
+            SyncDeletion.query.filter_by(
+                table_name=table_name, record_id=record_id).delete()
+        except Exception as ex:
+            db.session.rollback()
+            results['errors'].append(f'delete {table_name} id={record_id}: {ex}')
+    
+    try:
+        db.session.commit()
+        # PostgreSQL 序列重置
+        db_uri = os.environ.get('DATABASE_URL', '')
+        if db_uri and ('postgresql' in db_uri or 'postgres' in db_uri):
+            for tbl, seq in [('users', 'users_id_seq'), ('categories', 'categories_id_seq'),
+                             ('posts', 'posts_id_seq'), ('repos', 'repos_id_seq'),
+                             ('repo_files', 'repo_files_id_seq'),
+                             ('operation_logs', 'operation_logs_id_seq'),
+                             ('messages', 'messages_id_seq')]:
+                try:
+                    max_id = db.session.execute(
+                        db.text(f'SELECT COALESCE(MAX(id), 0) FROM {tbl}')).scalar()
+                    if max_id > 0:
+                        db.session.execute(
+                            db.text(f"SELECT setval('{seq}', {max_id})"))
+                except Exception:
+                    pass
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    return jsonify({'status': 'ok', 'results': results})
+
+
+@app.route('/admin/sync-status')
+@admin_required
+def sync_status_page():
+    """同步状态页面"""
+    states = SyncState.query.all()
+    return render_template('sync_status.html',
+                           states=states,
+                           config_token=SYNC_TOKEN[:6] + '***' if len(SYNC_TOKEN) > 6 else '***',
+                           peer_url=os.environ.get('SYNC_PEER_URL', ''),
+                           sync_interval=os.environ.get('SYNC_INTERVAL', '60'))
+
+
+# ========== 后台同步线程（仅本地运行）==========
+
+def _run_sync_loop():
+    """后台同步线程：每60秒向远端推送本地变更并拉取远端变更"""
+    import time
+    import requests as _requests
+    
+    peer_url = os.environ.get('SYNC_PEER_URL', '')  # 远端地址，如 https://xxx.up.railway.app
+    sync_token = SYNC_TOKEN
+    interval = int(os.environ.get('SYNC_INTERVAL', '60'))  # 秒
+    
+    if not peer_url:
+        print('[SYNC] No SYNC_PEER_URL set, sync thread disabled')
+        return
+    
+    print(f'[SYNC] Background sync thread started, peer={peer_url}, interval={interval}s')
+    
+    while True:
+        time.sleep(interval)
+        try:
+            with app.app_context():
+                # 获取上次同步时间
+                state = SyncState.query.filter_by(peer_url=peer_url).first()
+                if state and state.last_sync_at:
+                    since = state.last_sync_at.isoformat()
+                else:
+                    since = ''
+                
+                # 1. 拉取远端变更
+                try:
+                    pull_url = f'{peer_url.rstrip("/")}/api/sync?since={since}&token={sync_token}'
+                    resp = _requests.get(pull_url, timeout=30)
+                    if resp.status_code == 200:
+                        remote_data = resp.json()
+                        # 应用远端变更到本地
+                        if remote_data.get('changes') or remote_data.get('deletions'):
+                            apply_url = f'{"http://127.0.0.1:5000"}/api/sync/apply'
+                            _requests.post(apply_url, json=remote_data,
+                                         headers={'X-Sync-Token': sync_token}, timeout=30)
+                            print(f'[SYNC] Pulled changes from remote')
+                    else:
+                        print(f'[SYNC] Pull failed: HTTP {resp.status_code}')
+                except Exception as e:
+                    print(f'[SYNC] Pull error: {e}')
+                
+                # 2. 推送本地变更到远端
+                try:
+                    push_pull_url = f'{"http://127.0.0.1:5000"}/api/sync?since={since}&token={sync_token}'
+                    local_resp = _requests.get(push_pull_url, timeout=30)
+                    if local_resp.status_code == 200:
+                        local_data = local_resp.json()
+                        if local_data.get('changes') or local_data.get('deletions'):
+                            apply_url = f'{peer_url.rstrip("/")}/api/sync/apply'
+                            push_resp = _requests.post(apply_url, json=local_data,
+                                                      headers={'X-Sync-Token': sync_token}, timeout=30)
+                            if push_resp.status_code == 200:
+                                print(f'[SYNC] Pushed changes to remote')
+                            else:
+                                print(f'[SYNC] Push failed: HTTP {push_resp.status_code}')
+                except Exception as e:
+                    print(f'[SYNC] Push error: {e}')
+                
+                # 3. 更新同步状态
+                try:
+                    if not state:
+                        state = SyncState(peer_url=peer_url)
+                        db.session.add(state)
+                    state.last_sync_at = cn_now()
+                    state.last_status = 'success'
+                    state.last_message = 'Sync completed'
+                    db.session.commit()
+                except Exception as e:
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
+                    print(f'[SYNC] State update error: {e}')
+                    
+        except Exception as e:
+            print(f'[SYNC] Loop error: {e}')
+
+
+# 启动后台同步线程（仅本地 Waitress 运行时）
+def _start_sync_thread():
+    import threading
+    t = threading.Thread(target=_run_sync_loop, daemon=True)
+    t.start()
 
 
 if __name__ == '__main__':
