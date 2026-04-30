@@ -1708,12 +1708,13 @@ def sync_status_page():
 # ========== 后台同步线程（仅本地运行）==========
 
 def _sync_reconcile(peer_url, sync_token):
-    """对比远端和本地的关键表 ID 列表，删除本地多出的记录（远端已删除但同步遗漏的）"""
+    """双向对比远端和本地的关键表 ID 列表，互相删除多出的记录"""
     import requests as _requests
     model_map = {t: m for t, m, _ in SYNC_TABLES}
     # 只对比主要表（repo_files 太多，跳过）
     reconcile_tables = ['users', 'categories', 'posts', 'repos', 'messages']
     try:
+        print('[RECONCILE] Starting reconciliation...')
         # 拉取远端全量 ID 列表
         remote_url = f'{peer_url.rstrip("/")}/api/sync?token={sync_token}'
         resp = _requests.get(remote_url, timeout=60)
@@ -1729,45 +1730,192 @@ def _sync_reconcile(peer_url, sync_token):
             return
         local_data = local_resp.json()
 
+        # 准备推送到远端的删除列表（远程多出的 = 本地有远程没有 → 说明远程已删，本地也该删）
+        # 以及本地多出的 = 远程有本地没有 → 说明本地已删，远程也该删
+        remote_deletions = []  # 要让远程删除的记录
+
         for table_name in reconcile_tables:
             remote_ids = set(r.get('id') for r in remote_data.get('changes', {}).get(table_name, []))
             local_ids = set(r.get('id') for r in local_data.get('changes', {}).get(table_name, []))
+
+            # 本地多出的 = 远程没有的记录
+            # 策略：先推送到远程（可能是新建但推送遗漏），推送失败才删除本地（说明远程确实已删）
             only_local = local_ids - remote_ids
             if only_local:
                 model_cls = model_map.get(table_name)
                 if not model_cls:
                     continue
+                # 收集本地多出的记录数据
+                local_records = local_data.get('changes', {}).get(table_name, [])
+                push_records = []
+                # 不再用2分钟阈值保护only_local——因为推送失败不删本地，不存在误删风险
+                # 2分钟保护只适用于only_remote（防止删远程新建未拉取的记录）
                 for rid in only_local:
-                    obj = model_cls.query.get(rid)
-                    if obj:
-                        # 记录删除日志
-                        log_deletion(obj)
-                        db.session.delete(obj)
-                        print(f'[RECONCILE] Deleted local {table_name} id={rid} (not in remote)')
-                try:
-                    db.session.commit()
-                except Exception as e:
-                    db.session.rollback()
-                    print(f'[RECONCILE] Commit error: {e}')
+                    rec = next((r for r in local_records if r.get('id') == rid), None)
+                    if rec:
+                        push_records.append(rec)
+                    else:
+                        # API没返回该记录数据，从DB直接读取
+                        obj = model_cls.query.get(rid)
+                        if obj:
+                            rec_data = {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
+                            # datetime字段转字符串
+                            for k, v in rec_data.items():
+                                if v and hasattr(v, 'isoformat'):
+                                    rec_data[k] = v.isoformat()
+                            push_records.append(rec_data)
+                
+                # 推送到远程
+                if push_records:
+                    try:
+                        apply_url = f'{peer_url.rstrip("/")}/api/sync/apply'
+                        push_data = {'changes': {table_name: push_records}, 'deletions': []}
+                        push_resp = _requests.post(apply_url, json=push_data,
+                                                  headers={'X-Sync-Token': sync_token}, timeout=60)
+                        if push_resp.status_code == 200:
+                            result = push_resp.json()
+                            applied = result.get('results', {}).get('applied', 0)
+                            print(f'[RECONCILE] Pushed {len(push_records)} local-only {table_name} to remote, applied={applied}')
+                            # 推送成功的记录不再需要删除
+                            pushed_ids = set(r.get('id') for r in push_records)
+                            only_local = only_local - pushed_ids
+                        else:
+                            print(f'[RECONCILE] Push local-only {table_name} failed: HTTP {push_resp.status_code}')
+                    except Exception as e:
+                        print(f'[RECONCILE] Push local-only {table_name} error: {e}')
+                
+                # 推送失败或远程拒绝的记录 → 保留本地，下次reconcile重试
+                # 不再删除本地记录，避免数据丢失
+                remaining = only_local
+                if remaining:
+                    for rid in remaining:
+                        # 检查远端是否有 SyncDeletion 记录（证明远端明确删除了该记录）
+                        has_deletion = SyncDeletion.query.filter_by(table_name=table_name, record_id=rid).first()
+                        if has_deletion:
+                            obj = model_cls.query.get(rid)
+                            if obj:
+                                db.session.delete(obj)
+                                db.session.delete(has_deletion)
+                                print(f'[RECONCILE] Deleted local {table_name} id={rid} (remote has deletion record)')
+                        else:
+                            print(f'[RECONCILE] Kept local {table_name} id={rid} (not in remote, no deletion record, will retry push)')
+                    try:
+                        db.session.commit()
+                    except Exception as e:
+                        db.session.rollback()
+                        print(f'[RECONCILE] Commit error: {e}')
+
+            # 远程多出的记录 → 检查本地是否有 SyncDeletion（证明本地明确删除过）
+            # 有 SyncDeletion → 推送删除到远程（本地已删，远程遗漏了）
+            # 无 SyncDeletion → 远程新建但本地还没拉取，不删远程，等pull拉取
+            only_remote = remote_ids - local_ids
+            if only_remote:
+                for rid in only_remote:
+                    # 检查本地 SyncDeletion 记录
+                    has_local_deletion = SyncDeletion.query.filter_by(table_name=table_name, record_id=rid).first()
+                    if has_local_deletion:
+                        remote_deletions.append({
+                            'table_name': table_name,
+                            'record_id': rid
+                        })
+                        print(f'[RECONCILE] Will delete remote {table_name} id={rid} (local has deletion record)')
+                    else:
+                        # 远程新建的记录，本地还没拉取，跳过
+                        print(f'[RECONCILE] Kept remote {table_name} id={rid} (no local deletion record, will pull)')
+
+        # 推送远程删除请求
+        if remote_deletions:
+            try:
+                apply_url = f'{peer_url.rstrip("/")}/api/sync/apply'
+                push_data = {'changes': {}, 'deletions': remote_deletions}
+                push_resp = _requests.post(apply_url, json=push_data,
+                                          headers={'X-Sync-Token': sync_token}, timeout=60)
+                if push_resp.status_code == 200:
+                    print(f'[RECONCILE] Pushed {len(remote_deletions)} deletions to remote')
+                else:
+                    print(f'[RECONCILE] Push deletions failed: HTTP {push_resp.status_code}')
+            except Exception as e:
+                print(f'[RECONCILE] Push deletions error: {e}')
+
         # 对比 repo_files（仅对比 ID 集合差异）
         remote_rf_ids = set(r.get('id') for r in remote_data.get('changes', {}).get('repo_files', []))
         local_rf_ids = set(r.get('id') for r in local_data.get('changes', {}).get('repo_files', []))
         only_local_rf = local_rf_ids - remote_rf_ids
         if only_local_rf:
-            model_cls = model_map.get('repo_files')
-            for rid in only_local_rf:
-                obj = model_cls.query.get(rid)
-                if obj:
-                    db.session.delete(obj)
+            # 先尝试推送本地多出的 repo_files 到远程
+            local_rf_records = local_data.get('changes', {}).get('repo_files', [])
+            push_rf_records = [r for r in local_rf_records if r.get('id') in only_local_rf]
+            if push_rf_records:
+                # 分批推送，每批500条
+                batch_size = 500
+                pushed_ids = set()
+                for i in range(0, len(push_rf_records), batch_size):
+                    batch = push_rf_records[i:i+batch_size]
+                    try:
+                        apply_url = f'{peer_url.rstrip("/")}/api/sync/apply'
+                        push_data = {'changes': {'repo_files': batch}, 'deletions': []}
+                        push_resp = _requests.post(apply_url, json=push_data,
+                                                  headers={'X-Sync-Token': sync_token}, timeout=120)
+                        if push_resp.status_code == 200:
+                            result = push_resp.json()
+                            applied = result.get('results', {}).get('applied', 0)
+                            batch_ids = set(r.get('id') for r in batch)
+                            pushed_ids |= batch_ids
+                            print(f'[RECONCILE] Pushed {len(batch)} local-only repo_files batch, applied={applied}')
+                        else:
+                            print(f'[RECONCILE] Push local-only repo_files failed: HTTP {push_resp.status_code}')
+                    except Exception as e:
+                        print(f'[RECONCILE] Push local-only repo_files error: {e}')
+                only_local_rf = only_local_rf - pushed_ids
+            # 推送失败或远程拒绝的 repo_files → 保留本地，检查 SyncDeletion
+            if only_local_rf:
+                model_cls = model_map.get('repo_files')
+                deleted_count = 0
+                kept_count = 0
+                for rid in only_local_rf:
+                    has_deletion = SyncDeletion.query.filter_by(table_name='repo_files', record_id=rid).first()
+                    if has_deletion:
+                        obj = model_cls.query.get(rid)
+                        if obj:
+                            db.session.delete(obj)
+                        db.session.delete(has_deletion)
+                        deleted_count += 1
+                    else:
+                        kept_count += 1
+                try:
+                    db.session.commit()
+                    if deleted_count:
+                        print(f'[RECONCILE] Deleted {deleted_count} local repo_files (remote has deletion record)')
+                    if kept_count:
+                        print(f'[RECONCILE] Kept {kept_count} local repo_files (no deletion record, will retry push)')
+                except Exception as e:
+                    db.session.rollback()
+                    print(f'[RECONCILE] repo_files commit error: {e}')
+        # 远程多出的 repo_files → 检查本地 SyncDeletion 再决定删除远程
+        only_remote_rf = remote_rf_ids - local_rf_ids
+        if only_remote_rf:
+            rf_deletions = []
+            for rid in only_remote_rf:
+                has_local_deletion = SyncDeletion.query.filter_by(table_name='repo_files', record_id=rid).first()
+                if has_local_deletion:
+                    rf_deletions.append({'table_name': 'repo_files', 'record_id': rid})
+                else:
+                    print(f'[RECONCILE] Kept remote repo_file id={rid} (no local deletion record, will pull)')
             try:
-                db.session.commit()
-                if only_local_rf:
-                    print(f'[RECONCILE] Deleted {len(only_local_rf)} local repo_files not in remote')
+                apply_url = f'{peer_url.rstrip("/")}/api/sync/apply'
+                push_data = {'changes': {}, 'deletions': rf_deletions}
+                push_resp = _requests.post(apply_url, json=push_data,
+                                          headers={'X-Sync-Token': sync_token}, timeout=60)
+                if push_resp.status_code == 200:
+                    print(f'[RECONCILE] Pushed {len(rf_deletions)} repo_files deletions to remote')
+                else:
+                    print(f'[RECONCILE] Push repo_files deletions failed: HTTP {push_resp.status_code}')
             except Exception as e:
-                db.session.rollback()
-                print(f'[RECONCILE] repo_files commit error: {e}')
+                print(f'[RECONCILE] Push repo_files deletions error: {e}')
     except Exception as e:
+        import traceback
         print(f'[RECONCILE] Error: {e}')
+        traceback.print_exc()
 
 
 def _run_sync_loop():
@@ -1790,15 +1938,8 @@ def _run_sync_loop():
     
     while True:
         time.sleep(interval)
-        reconcile_counter += 1
         try:
             with app.app_context():
-                # 定期全量对比（修复遗漏的删除）
-                if reconcile_counter >= reconcile_interval:
-                    reconcile_counter = 0
-                    print('[SYNC] Running reconciliation...')
-                    _sync_reconcile(peer_url, sync_token)
-                
                 # 获取上次同步时间
                 state = SyncState.query.filter_by(peer_url=peer_url).first()
                 if state and state.last_sync_at:
@@ -1826,27 +1967,12 @@ def _run_sync_loop():
                 except Exception as e:
                     print(f'[SYNC] Pull error: {e}')
                 
-                # 2. 先更新同步时间点，这样推送时 since 之后只包含本地真正产生的变更
-                #    （避免把刚从远端拉下来的数据又推回去）
+                # 2. 推送本地变更到远端
+                #    用旧的 since（上一轮 last_sync_at），确保不遗漏变更和删除
+                #    防回写由 apply 端的 updated_at 比较机制保证，无需提前推进 last_sync_at
+                push_ok = False
                 try:
-                    if not state:
-                        state = SyncState(peer_url=peer_url)
-                        db.session.add(state)
-                    state.last_sync_at = sync_start
-                    state.last_status = 'syncing'
-                    state.last_message = 'Push in progress'
-                    db.session.commit()
-                except Exception as e:
-                    try:
-                        db.session.rollback()
-                    except Exception:
-                        pass
-                    print(f'[SYNC] State update error: {e}')
-                
-                # 3. 推送本地变更到远端（使用新的 since = sync_start）
-                try:
-                    # 用 sync_start 之后的变更，排除已同步的数据
-                    push_pull_url = f'{"http://127.0.0.1:5000"}/api/sync?since={sync_start.isoformat()}&token={sync_token}'
+                    push_pull_url = f'{"http://127.0.0.1:5000"}/api/sync?since={since}&token={sync_token}'
                     local_resp = _requests.get(push_pull_url, timeout=30)
                     if local_resp.status_code == 200:
                         local_data = local_resp.json()
@@ -1856,12 +1982,42 @@ def _run_sync_loop():
                                                       headers={'X-Sync-Token': sync_token}, timeout=30)
                             if push_resp.status_code == 200:
                                 print(f'[SYNC] Pushed changes to remote')
+                                push_ok = True
                             else:
                                 print(f'[SYNC] Push failed: HTTP {push_resp.status_code}')
+                        else:
+                            push_ok = True  # 无变更也视为成功
+                    else:
+                        print(f'[SYNC] Push local query failed: HTTP {local_resp.status_code}')
                 except Exception as e:
                     print(f'[SYNC] Push error: {e}')
                 
-                # 4. 更新同步最终状态
+                # 3. 推送成功后才推进 last_sync_at
+                #    如果推送失败，since 保持不变，下次循环重试这些变更
+                if push_ok:
+                    try:
+                        if not state:
+                            state = SyncState(peer_url=peer_url)
+                            db.session.add(state)
+                        state.last_sync_at = sync_start
+                        state.last_status = 'syncing'
+                        state.last_message = 'Push ok, reconcile pending'
+                        db.session.commit()
+                    except Exception as e:
+                        try:
+                            db.session.rollback()
+                        except Exception:
+                            pass
+                        print(f'[SYNC] State update error after push: {e}')
+                
+                # 4. 全量对比（放在推送之后，避免删除还没推送的本地新记录）
+                reconcile_counter += 1
+                if reconcile_counter >= reconcile_interval:
+                    reconcile_counter = 0
+                    print('[SYNC] Running reconciliation...')
+                    _sync_reconcile(peer_url, sync_token)
+                
+                # 5. 更新同步最终状态
                 try:
                     state.last_sync_at = cn_now()
                     state.last_status = 'success'
