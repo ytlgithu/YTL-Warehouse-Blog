@@ -12,7 +12,7 @@ from werkzeug.utils import secure_filename
 # 东八区时间
 CN_TIMEZONE = timezone(timedelta(hours=8))
 def cn_now():
-    return datetime.now(CN_TIMEZONE)
+    return datetime.now(CN_TIMEZONE).replace(tzinfo=None)
 
 from config import Config
 from models import db, User, Repo, RepoFile, Post, OperationLog, Category, Message, SyncState, SyncDeletion
@@ -146,9 +146,10 @@ def time_since(dt):
     if not dt:
         return ''
     now = cn_now()
-    # 如果 dt 是 naive datetime，给它加上时区
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=CN_TIMEZONE)
+    # cn_now() 和数据库存的都是 naive 北京时间字面值，直接比较
+    # 兼容旧数据：如果 dt 是 tz-aware，去掉时区再比较
+    if dt.tzinfo is not None:
+        dt = dt.replace(tzinfo=None)
     delta = now - dt
     s = int(delta.total_seconds())
     if s < 60:
@@ -1057,6 +1058,48 @@ def migrate_db():
                 except Exception as e:
                     db.session.rollback()
                     print(f'[MIGRATE] categories.sort_order rename failed: {e}')
+
+        # 5. PostgreSQL 时区修复：旧数据 cn_now() 返回 tz-aware datetime，
+        #        psycopg2 自动转为 UTC 存入 TIMESTAMP WITHOUT TIME ZONE
+        #        导致 PG 里存的值比实际北京时间少了8小时
+        #        修复：将所有 datetime 列的值加8小时（从 UTC 字面值转为北京时间字面值）
+        if db_url.startswith('postgresql'):
+            try:
+                # 检查是否已修复：通过 _tz_fix_done 标记表
+                fix_done = db.session.execute(text(
+                    "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = '_tz_fix_done')"
+                )).scalar()
+                if not fix_done:
+                    tz_tables = {
+                        'users': ['created_at', 'last_login'],
+                        'repos': ['created_at', 'updated_at'],
+                        'repo_files': ['created_at', 'updated_at'],
+                        'categories': ['created_at'],
+                        'posts': ['created_at', 'updated_at'],
+                        'operation_logs': ['created_at'],
+                        'messages': ['created_at'],
+                        'sync_state': ['last_sync_at', 'updated_at'],
+                        'sync_deletions': ['deleted_at'],
+                    }
+                    for tbl, cols in tz_tables.items():
+                        if tbl not in inspector.get_table_names():
+                            continue
+                        tbl_cols = [c['name'] for c in inspector.get_columns(tbl)]
+                        for col in cols:
+                            if col not in tbl_cols:
+                                continue
+                            db.session.execute(text(
+                                f"UPDATE {tbl} SET {col} = {col} + interval '8 hours' "
+                                f"WHERE {col} IS NOT NULL"
+                            ))
+                            print(f'[MIGRATE] +8h fix: {tbl}.{col}')
+                    db.session.execute(text('CREATE TABLE _tz_fix_done (done BOOLEAN DEFAULT TRUE)'))
+                    db.session.execute(text('INSERT INTO _tz_fix_done VALUES (TRUE)'))
+                    db.session.commit()
+                    print('[MIGRATE] Timezone +8h fix applied (PG UTC → Beijing)')
+            except Exception as e:
+                db.session.rollback()
+                print(f'[MIGRATE] Timezone fix failed: {e}')
 
         print('[MIGRATE] Migration complete')
 
