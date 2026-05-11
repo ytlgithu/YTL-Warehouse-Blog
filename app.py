@@ -1622,6 +1622,62 @@ def api_sync_pull():
     return jsonify(result)
 
 
+
+@app.route('/api/sync/fix-tz', methods=['POST'])
+def api_sync_fix_tz():
+    """Fix timezone in remote PG: add 8 hours to all datetime columns (one-time)"""
+    _sync_auth()
+    
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    db_url = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    
+    if not db_url.startswith('postgresql'):
+        return jsonify({'status': 'skipped', 'message': 'Not PostgreSQL'})
+    
+    results = []
+    try:
+        # Drop _tz_fix_done to allow re-run
+        if '_tz_fix_done' in inspector.get_table_names():
+            db.session.execute(text('DROP TABLE _tz_fix_done'))
+            db.session.commit()
+            results.append('Dropped _tz_fix_done table')
+        
+        tz_tables = {
+            'users': ['created_at', 'last_login'],
+            'repos': ['created_at', 'updated_at'],
+            'repo_files': ['created_at', 'updated_at'],
+            'categories': ['created_at'],
+            'posts': ['created_at', 'updated_at'],
+            'operation_logs': ['created_at'],
+            'messages': ['created_at'],
+            'sync_state': ['last_sync_at', 'updated_at'],
+            'sync_deletions': ['deleted_at'],
+        }
+        
+        for tbl, cols in tz_tables.items():
+            if tbl not in inspector.get_table_names():
+                continue
+            tbl_cols = [c['name'] for c in inspector.get_columns(tbl)]
+            for col in cols:
+                if col not in tbl_cols:
+                    continue
+                db.session.execute(text(
+                    f"UPDATE {tbl} SET {col} = {col} + interval '8 hours' "
+                    f"WHERE {col} IS NOT NULL"
+                ))
+                results.append(f'+8h fix: {tbl}.{col}')
+        
+        db.session.execute(text('CREATE TABLE _tz_fix_done (done BOOLEAN DEFAULT TRUE)'))
+        db.session.execute(text('INSERT INTO _tz_fix_done VALUES (TRUE)'))
+        db.session.commit()
+        results.append('Created _tz_fix_done marker')
+        
+        return jsonify({'status': 'ok', 'results': results})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e), 'partial': results}), 500
+
 @app.route('/api/sync/apply', methods=['POST'])
 def api_sync_apply():
     """应用远端推送的变更"""
