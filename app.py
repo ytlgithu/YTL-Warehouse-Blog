@@ -160,7 +160,7 @@ def time_since(dt):
         return f'{s // 3600}小时前'
     if s < 604800:
         return f'{s // 86400}天前'
-    return dt.strftime('%Y-%m-%d')
+    return dt.strftime('%Y-%m-%d %H:%M:%S')
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -1867,8 +1867,24 @@ def _sync_reconcile(peer_url, sync_token):
                         })
                         print(f'[RECONCILE] Will delete remote {table_name} id={rid} (local has recent deletion record)')
                     else:
-                        # 远程新建的记录，本地还没拉取，或删除记录已过期（可能是ID重用），跳过
-                        print(f'[RECONCILE] Kept remote {table_name} id={rid} (no recent deletion record, will pull)')
+                        # 远程有但本地缺失的记录——主动拉取到本地
+                        # 因为增量pull的since可能已超过这些记录的updated_at，永远不会拉到
+                        remote_records = remote_data.get('changes', {}).get(table_name, [])
+                        rec = next((r for r in remote_records if r.get('id') == rid), None)
+                        if rec:
+                            try:
+                                apply_url = 'http://127.0.0.1:5000/api/sync/apply'
+                                pull_data = {'changes': {table_name: [rec]}, 'deletions': []}
+                                apply_resp = _requests.post(apply_url, json=pull_data,
+                                                           headers={'X-Sync-Token': sync_token}, timeout=30)
+                                if apply_resp.status_code == 200:
+                                    print(f'[RECONCILE] Pulled remote-only {table_name} id={rid} to local')
+                                else:
+                                    print(f'[RECONCILE] Pull remote-only {table_name} id={rid} failed: HTTP {apply_resp.status_code}')
+                            except Exception as e:
+                                print(f'[RECONCILE] Pull remote-only {table_name} id={rid} error: {e}')
+                        else:
+                            print(f'[RECONCILE] Remote {table_name} id={rid} not in API response, will retry next cycle')
 
         # 推送远程删除请求
         if remote_deletions:
