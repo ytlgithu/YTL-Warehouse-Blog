@@ -4,7 +4,7 @@ import sys
 import traceback
 
 # Ensure the project root is in path
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Import the Flask app
 from app import app, init_db

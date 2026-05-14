@@ -1,22 +1,34 @@
 import os
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'ytl-blog-secret-2026')
 
-    # Railway PostgreSQL（DATABASE_URL 由 Railway 自动注入，需通过 Reference Variable 引用）
-    # 本地开发时使用 SQLite
+    # Railway/Vercel PostgreSQL via DATABASE_URL. Local development uses SQLite.
     db_url = os.environ.get('DATABASE_URL', '')
     if db_url:
-        # PostgreSQL 格式兼容（Railway / Supabase）
         uri = db_url.replace('postgres://', 'postgresql://', 1)
-        # 使用纯 Python pg8000 驱动（避免编译依赖，Vercel 兼容）
-        if '+pg8000' not in uri:
+        if uri.startswith('postgresql://') and '+pg8000' not in uri:
             uri = uri.replace('postgresql://', 'postgresql+pg8000://', 1)
-        # pg8000 不支持 sslmode 参数，需要用 create_engine_kwargs 传递
-        # 移除 URI 中的 sslmode，改在 app.py 中通过 engine_options 配置
-        SQLALCHEMY_DATABASE_URI = uri
+
+        # pg8000 does not accept libpq-style sslmode in the URL.
+        # SSL is configured in app.py through SQLALCHEMY_ENGINE_OPTIONS.
+        parts = urlsplit(uri)
+        query = urlencode([
+            (k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
+            if k.lower() != 'sslmode'
+        ])
+        SQLALCHEMY_DATABASE_URI = urlunsplit((
+            parts.scheme,
+            parts.netloc,
+            parts.path,
+            query,
+            parts.fragment,
+        ))
     else:
         DATA_DIR = os.path.join(BASE_DIR, 'instance')
         os.makedirs(DATA_DIR, exist_ok=True)
@@ -24,7 +36,7 @@ class Config:
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # Railway 持久化卷 / Vercel 临时目录
+    # Railway persistent volume / Vercel temporary filesystem.
     _vol = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '')
     _vercel = os.environ.get('VERCEL', '')
     if _vol:
