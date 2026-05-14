@@ -9,8 +9,12 @@ class Config:
     # 本地开发时使用 SQLite
     db_url = os.environ.get('DATABASE_URL', '')
     if db_url:
-        # Railway PostgreSQL 格式兼容
-        SQLALCHEMY_DATABASE_URI = db_url.replace('postgres://', 'postgresql://', 1)
+        # PostgreSQL 格式兼容（Railway / Supabase）
+        uri = db_url.replace('postgres://', 'postgresql://', 1)
+        # 使用纯 Python pg8000 驱动（避免编译依赖，Vercel 兼容）
+        if '+pg8000' not in uri:
+            uri = uri.replace('postgresql://', 'postgresql+pg8000://', 1)
+        SQLALCHEMY_DATABASE_URI = uri
     else:
         DATA_DIR = os.path.join(BASE_DIR, 'instance')
         os.makedirs(DATA_DIR, exist_ok=True)
@@ -18,9 +22,15 @@ class Config:
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # Railway 持久化卷路径（挂载 /data 目录后才有值）
+    # Railway 持久化卷 / Vercel 临时目录
     _vol = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '')
-    UPLOAD_FOLDER = os.path.join(_vol, 'uploads') if _vol else os.path.join(BASE_DIR, 'uploads')
+    _vercel = os.environ.get('VERCEL', '')
+    if _vol:
+        UPLOAD_FOLDER = os.path.join(_vol, 'uploads')
+    elif _vercel:
+        UPLOAD_FOLDER = '/tmp/uploads'
+    else:
+        UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
     MAX_CONTENT_LENGTH = 2 * 1024 * 1024 * 1024  # 2GB
