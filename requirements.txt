@@ -1,7 +1,0 @@
-flask>=2.3
-flask-sqlalchemy>=3.0
-werkzeug>=2.3
-gunicorn>=21.0
-psycopg2-binary>=2.9
-marked>=9.1.0
-pygments>=2.17.0
