@@ -7,8 +7,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 CN_TIMEZONE = timezone(timedelta(hours=8))
 
 def cn_now():
-    """返回东八区当前时间"""
-    return datetime.now(CN_TIMEZONE)
+    """返回东八区当前时间（naive datetime，避免PostgreSQL时区转换问题）"""
+    return datetime.now(CN_TIMEZONE).replace(tzinfo=None)
 
 db = SQLAlchemy()
 
