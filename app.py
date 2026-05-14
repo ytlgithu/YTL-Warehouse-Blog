@@ -23,8 +23,11 @@ app.config.from_object(Config)
 # pg8000 SSL 配置：Supabase 要求 SSL，pg8000 用 ssl_context 而非 sslmode
 if 'pg8000' in app.config.get('SQLALCHEMY_DATABASE_URI', ''):
     import ssl
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'connect_args': {'ssl_context': ssl.create_default_context()}
+        'connect_args': {'ssl_context': ssl_context}
     }
 
 db.init_app(app)
