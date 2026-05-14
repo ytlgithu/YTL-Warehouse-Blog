@@ -1009,23 +1009,27 @@ def migrate_db():
         from sqlalchemy import inspect, text
         inspector = inspect(db.engine)
         
-        # 1. 检查 categories 表是否存在，不存在则创建
+        # 1. 检查 categories 表是否存在，不存在则创建所有表
         if 'categories' not in inspector.get_table_names():
             db.create_all()
-            print('[MIGRATE] Created categories table')
+            print('[MIGRATE] Created all tables (new database)')
+            return  # 新数据库，不需要后续迁移
         
-        # 2. 检查 posts 表是否有 category_id 字段
-        columns = [c['name'] for c in inspector.get_columns('posts')]
-        if 'category_id' not in columns:
-            db.session.execute(text('ALTER TABLE posts ADD COLUMN category_id INTEGER REFERENCES categories(id)'))
-            db.session.commit()
-            print('[MIGRATE] Added category_id to posts table')
+        # 2. 检查 posts 表是否有 category_id 字段（仅当 posts 表存在时）
+        if 'posts' in inspector.get_table_names():
+            columns = [c['name'] for c in inspector.get_columns('posts')]
+            if 'category_id' not in columns:
+                db.session.execute(text('ALTER TABLE posts ADD COLUMN category_id INTEGER REFERENCES categories(id)'))
+                db.session.commit()
+                print('[MIGRATE] Added category_id to posts table')
 
-        # 3. 检查 posts 表是否有 tags 字段
-        if 'tags' not in columns:
-            db.session.execute(text('ALTER TABLE posts ADD COLUMN tags VARCHAR(200)'))
-            db.session.commit()
-            print('[MIGRATE] Added tags to posts table')
+            # 3. 检查 posts 表是否有 tags 字段
+            if 'tags' not in columns:
+                db.session.execute(text('ALTER TABLE posts ADD COLUMN tags VARCHAR(200)'))
+                db.session.commit()
+                print('[MIGRATE] Added tags to posts table')
+        else:
+            columns = []  # posts 表不存在，设为空列表
 
         # 4. PostgreSQL 列名修复（Railway 旧表列名与模型不匹配）
         db_url = app.config.get('SQLALCHEMY_DATABASE_URI', '')
