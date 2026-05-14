@@ -1,5 +1,4 @@
 import os
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -12,23 +11,11 @@ class Config:
     db_url = os.environ.get('DATABASE_URL', '')
     if db_url:
         uri = db_url.replace('postgres://', 'postgresql://', 1)
-        if uri.startswith('postgresql://') and '+pg8000' not in uri:
-            uri = uri.replace('postgresql://', 'postgresql+pg8000://', 1)
-
-        # pg8000 does not accept libpq-style sslmode in the URL.
-        # SSL is configured in app.py through SQLALCHEMY_ENGINE_OPTIONS.
-        parts = urlsplit(uri)
-        query = urlencode([
-            (k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
-            if k.lower() != 'sslmode'
-        ])
-        SQLALCHEMY_DATABASE_URI = urlunsplit((
-            parts.scheme,
-            parts.netloc,
-            parts.path,
-            query,
-            parts.fragment,
-        ))
+        uri = uri.replace('postgresql+pg8000://', 'postgresql://', 1)
+        if 'sslmode=' not in uri:
+            separator = '&' if '?' in uri else '?'
+            uri = f'{uri}{separator}sslmode=require'
+        SQLALCHEMY_DATABASE_URI = uri
     else:
         DATA_DIR = os.path.join(BASE_DIR, 'instance')
         os.makedirs(DATA_DIR, exist_ok=True)
