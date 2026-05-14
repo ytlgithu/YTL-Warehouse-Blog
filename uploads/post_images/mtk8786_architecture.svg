@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="620" viewBox="0 0 1180 620">
+  <defs>
+    <style>
+      .bg { fill: #f7f9fc; }
+      .box { fill: #ffffff; stroke: #2f5f8f; stroke-width: 2; rx: 10; }
+      .server { fill: #e8f3ff; stroke: #2368a0; stroke-width: 2; rx: 10; }
+      .share { fill: #fff4df; stroke: #a66a00; stroke-width: 2; rx: 10; }
+      .out { fill: #eaf7ed; stroke: #2d7a3e; stroke-width: 2; rx: 10; }
+      .title { font: 700 28px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #1f2d3d; }
+      .text { font: 18px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #243447; }
+      .small { font: 15px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #435466; }
+      .arrow { stroke: #3c4b5d; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+      .label { font: 15px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #243447; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#3c4b5d"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1180" height="620"/>
+  <text class="title" x="40" y="48">MTK8786 团队代码/固件管理架构</text>
+
+  <rect class="box" x="55" y="105" width="190" height="86"/>
+  <text class="text" x="88" y="140">工程师 A</text>
+  <text class="small" x="83" y="168">repo sync / git push</text>
+
+  <rect class="box" x="55" y="255" width="190" height="86"/>
+  <text class="text" x="88" y="290">工程师 B</text>
+  <text class="small" x="83" y="318">分支开发 / PR</text>
+
+  <rect class="box" x="55" y="405" width="190" height="86"/>
+  <text class="text" x="88" y="440">工程师 C</text>
+  <text class="small" x="83" y="468">编译 / 验证</text>
+
+  <rect class="server" x="420" y="130" width="300" height="250"/>
+  <text class="text" x="515" y="170">Gitea</text>
+  <text class="small" x="455" y="205">manifest 仓库</text>
+  <text class="small" x="455" y="238">kernel-5.10 仓库</text>
+  <text class="small" x="455" y="271">device 配置仓库</text>
+  <text class="small" x="455" y="304">vendor / driver 仓库</text>
+  <text class="small" x="455" y="337">分支 / PR / 代码记录</text>
+
+  <rect class="out" x="825" y="110" width="275" height="110"/>
+  <text class="text" x="900" y="150">本地编译输出</text>
+  <text class="small" x="860" y="183">out / out_sys / merged</text>
+
+  <rect class="share" x="825" y="300" width="275" height="120"/>
+  <text class="text" x="905" y="340">共享目录</text>
+  <text class="small" x="858" y="373">factory / daily / debug 固件</text>
+  <text class="small" x="858" y="400">release_note + checksum</text>
+
+  <rect class="box" x="850" y="500" width="225" height="72"/>
+  <text class="text" x="900" y="532">工厂电脑</text>
+  <text class="small" x="888" y="558">SP Flash Tool 刷机</text>
+
+  <path class="arrow" d="M245 148 C315 148 335 188 420 188"/>
+  <text class="label" x="280" y="137">git push</text>
+
+  <path class="arrow" d="M245 298 C315 298 335 255 420 255"/>
+  <text class="label" x="282" y="289">PR / merge</text>
+
+  <path class="arrow" d="M420 335 C330 395 320 445 245 445"/>
+  <text class="label" x="285" y="407">repo sync</text>
+
+  <path class="arrow" d="M720 220 C770 190 785 165 825 165"/>
+  <text class="label" x="746" y="177">源码编译</text>
+
+  <path class="arrow" d="M963 220 L963 300"/>
+  <text class="label" x="978" y="264">复制固件</text>
+
+  <path class="arrow" d="M963 420 L963 500"/>
+  <text class="label" x="978" y="466">读取 scatter</text>
+</svg>

@@ -203,7 +203,57 @@
   border: 1px solid #333;
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
   position: relative;
+  color: #d4d4d4 !important; /* 确保代码块文字是浅色 */
 }
+
+/* 无语法高亮的纯文本代码块 */
+.post-content pre code:not(.hljs) {
+  color: #d4d4d4 !important;
+  background: transparent !important;
+}
+
+/* 强制所有代码块内的文字都是浅色，防止高亮后颜色过暗 */
+.post-content pre code,
+.post-content pre code.hljs,
+.post-content pre code * {
+  color: #d4d4d4 !important;
+}
+
+/* 但保留关键字高亮的颜色 */
+.post-content pre code .hljs-keyword,
+.post-content pre code .hljs-string,
+.post-content pre code .hljs-number,
+.post-content pre code .hljs-comment,
+.post-content pre code .hljs-attr,
+.post-content pre code .hljs-section,
+.post-content pre code .hljs-bullet,
+.post-content pre code .hljs-code,
+.post-content pre code .hljs-emphasis,
+.post-content pre code .hljs-strong,
+.post-content pre code .hljs-formula,
+.post-content pre code .hljs-link,
+.post-content pre code .hljs-quote,
+.post-content pre code .hljs-selector-tag,
+.post-content pre code .hljs-selector-id,
+.post-content pre code .hljs-selector-class,
+.post-content pre code .hljs-template-tag,
+.post-content pre code .hljs-template-variable,
+.post-content pre code .hljs-addition,
+.post-content pre code .hljs-deletion {
+  color: inherit !important;
+}
+
+/* 特殊高亮颜色 */
+.post-content pre code .hljs-keyword { color: #569cd6 !important; }
+.post-content pre code .hljs-string { color: #ce9178 !important; }
+.post-content pre code .hljs-number { color: #b5cea8 !important; }
+.post-content pre code .hljs-comment { color: #6a9955 !important; }
+.post-content pre code .hljs-attr { color: #9cdcfe !important; }
+.post-content pre code .hljs-section { color: #ffd700 !important; }
+.post-content pre code .hljs-bullet { color: #d4d4d4 !important; }
+.post-content pre code .hljs-code { color: #d4d4d4 !important; }
+.post-content pre code .hljs-emphasis { color: #d4d4d4 !important; font-style: italic; }
+.post-content pre code .hljs-strong { color: #d4d4d4 !important; font-weight: bold; }
 
 .copy-btn {
   position: absolute;
@@ -236,6 +286,25 @@
   font-size: 14px;
   line-height: 1.6;
   font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, Monaco, 'Courier New', monospace;
+}
+
+/* 错误关键词高亮 */
+.hljs-keyword-error { color: #f44747 !important; font-weight: bold; }
+.hljs-keyword-warn { color: #e5c07b !important; font-weight: bold; }
+.hljs-keyword-ok { color: #3fb950 !important; font-weight: bold; }
+
+/* Mermaid 图表样式 */
+.mermaid {
+  background: #1e1e1e;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 16px 0;
+  text-align: center;
+  overflow-x: auto;
+}
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
 }
 
 /* 行内代码 */
@@ -350,6 +419,8 @@ if (el && el.dataset.raw) {
   // 渲染完成后再次触发 highlight + 添加复制按钮
   el.querySelectorAll('pre code').forEach((block) => {
     hljs.highlightElement(block);
+    // 对未识别语言或log/plain代码块，做关键词着色
+    highlightKeywords(block);
     const pre = block.parentElement;
     if (!pre.querySelector('.copy-btn')) {
       const btn = document.createElement('button');
@@ -357,14 +428,24 @@ if (el && el.dataset.raw) {
       btn.textContent = '复制';
       btn.onclick = function() {
         const text = block.textContent;
-        navigator.clipboard.writeText(text).then(() => {
+        // 兼容HTTP非localhost环境：用textarea+execCommand代替clipboard API
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
           btn.textContent = '已复制 ✓';
           btn.classList.add('copied');
-          setTimeout(() => {
-            btn.textContent = '复制';
-            btn.classList.remove('copied');
-          }, 2000);
-        });
+        } catch(e) {
+          btn.textContent = '复制失败';
+        }
+        document.body.removeChild(ta);
+        setTimeout(() => {
+          btn.textContent = '复制';
+          btn.classList.remove('copied');
+        }, 2000);
       };
       pre.appendChild(btn);
     }
@@ -372,6 +453,34 @@ if (el && el.dataset.raw) {
   
   // 生成目录
   generateTOC();
+}
+
+// 关键词着色：对代码块中的错误/警告/成功关键词上色
+function highlightKeywords(block) {
+  const html = block.innerHTML;
+  const replacements = [
+    // 错误关键词 - 红色
+    { pattern: /\b(FAILED)\b/g, cls: 'hljs-keyword-error' },
+    { pattern: /\b(error:)\b/g, cls: 'hljs-keyword-error' },
+    { pattern: /\b(ninja failed)\b/g, cls: 'hljs-keyword-error' },
+    { pattern: /\b(subcommand failed)\b/g, cls: 'hljs-keyword-error' },
+    { pattern: /\b(FATAL)\b/g, cls: 'hljs-keyword-error' },
+    { pattern: /\b(denied)\b/gi, cls: 'hljs-keyword-error' },
+    // 警告关键词 - 黄色
+    { pattern: /\b(Warning)\b/g, cls: 'hljs-keyword-warn' },
+    { pattern: /\b(warning:)\b/g, cls: 'hljs-keyword-warn' },
+    { pattern: /\b(WARN)\b/g, cls: 'hljs-keyword-warn' },
+    // 成功关键词 - 绿色
+    { pattern: /\b(SUCCESS)\b/g, cls: 'hljs-keyword-ok' },
+    { pattern: /\b(PASS)\b/g, cls: 'hljs-keyword-ok' },
+    { pattern: /\b(OK)\b/g, cls: 'hljs-keyword-ok' },
+  ];
+  // 只对未高亮的纯文本部分做替换，避免破坏已有的hljs标签
+  let newHtml = html;
+  for (const { pattern, cls } of replacements) {
+    newHtml = newHtml.replace(pattern, '<span class="' + cls + '">$1</span>');
+  }
+  block.innerHTML = newHtml;
 }
 
 // 生成目录
@@ -531,5 +640,41 @@ function generateTOC() {
     });
   }
 }
+</script>
+<!-- Mermaid 图表支持 -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  // 初始化 mermaid
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    flowchart: {
+      useMaxWidth: true,
+      htmlLabels: true,
+      curve: 'basis'
+    }
+  });
+  
+  // 渲染完成后，把 mermaid 代码块替换成图表
+  document.addEventListener('DOMContentLoaded', function() {
+    const mermaidBlocks = document.querySelectorAll('pre code.language-mermaid, pre code[class*="mermaid"]');
+    mermaidBlocks.forEach(function(block) {
+      const pre = block.parentElement;
+      const code = block.textContent;
+      const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
+      
+      // 创建 mermaid 容器
+      const container = document.createElement('div');
+      container.className = 'mermaid';
+      container.id = id;
+      container.textContent = code;
+      
+      // 替换 pre 元素
+      pre.parentNode.replaceChild(container, pre);
+    });
+    
+    // 重新运行 mermaid 渲染
+    mermaid.init(undefined, '.mermaid');
+  });
 </script>
 {% endblock %}

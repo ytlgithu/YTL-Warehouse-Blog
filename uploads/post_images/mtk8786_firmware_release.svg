@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="540" viewBox="0 0 1180 540">
+  <defs>
+    <style>
+      .bg { fill: #f7f9fc; }
+      .box { fill: #ffffff; stroke: #315f85; stroke-width: 2; rx: 12; }
+      .share { fill: #fff4df; stroke: #a66a00; stroke-width: 2; rx: 12; }
+      .ok { fill: #eaf7ed; stroke: #2d7a3e; stroke-width: 2; rx: 12; }
+      .title { font: 700 28px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #1f2d3d; }
+      .text { font: 18px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #223548; }
+      .small { font: 15px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #47586b; }
+      .arrow { stroke: #3c4b5d; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#3c4b5d"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1180" height="540"/>
+  <text class="title" x="40" y="50">固件发布流程</text>
+
+  <rect class="box" x="55" y="115" width="205" height="95"/>
+  <text class="text" x="96" y="150">1. 锁定源码</text>
+  <text class="small" x="82" y="180">repo manifest -r</text>
+
+  <rect class="box" x="320" y="115" width="205" height="95"/>
+  <text class="text" x="365" y="150">2. 完整编译</text>
+  <text class="small" x="355" y="180">run_build_fast.sh</text>
+
+  <rect class="ok" x="585" y="115" width="205" height="95"/>
+  <text class="text" x="630" y="150">3. 生成固件</text>
+  <text class="small" x="622" y="180">merged 目录</text>
+
+  <rect class="share" x="850" y="115" width="255" height="95"/>
+  <text class="text" x="910" y="150">4. 放共享目录</text>
+  <text class="small" x="878" y="180">20_factory / 10_daily</text>
+
+  <rect class="share" x="210" y="325" width="260" height="110"/>
+  <text class="text" x="268" y="360">固件包必须包含</text>
+  <text class="small" x="245" y="390">merged + release_note.md</text>
+  <text class="small" x="245" y="415">manifest_locked.xml</text>
+
+  <rect class="ok" x="675" y="325" width="260" height="110"/>
+  <text class="text" x="742" y="360">工厂刷机</text>
+  <text class="small" x="708" y="390">MT6768_Android_scatter.txt</text>
+  <text class="small" x="735" y="415">Download Only</text>
+
+  <path class="arrow" d="M260 162 L320 162"/>
+  <path class="arrow" d="M525 162 L585 162"/>
+  <path class="arrow" d="M790 162 L850 162"/>
+  <path class="arrow" d="M978 210 C968 285 880 303 820 325"/>
+  <path class="arrow" d="M850 210 C770 280 500 280 370 325"/>
+  <path class="arrow" d="M470 380 L675 380"/>
+
+  <text class="small" x="65" y="492">注意：不要把 img/zip/out/out_sys 进 Git；固件用共享目录保存，代码版本用 manifest_locked.xml 追踪。</text>
+</svg>

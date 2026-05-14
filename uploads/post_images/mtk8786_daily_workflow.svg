@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="520" viewBox="0 0 1180 520">
+  <defs>
+    <style>
+      .bg { fill: #fbfcfe; }
+      .step { fill: #ffffff; stroke: #315f85; stroke-width: 2; rx: 12; }
+      .test { fill: #eaf7ed; stroke: #2f7c42; stroke-width: 2; rx: 12; }
+      .warn { fill: #fff4df; stroke: #a66a00; stroke-width: 2; rx: 12; }
+      .title { font: 700 28px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #1f2d3d; }
+      .text { font: 18px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #223548; }
+      .small { font: 15px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #47586b; }
+      .arrow { stroke: #3c4b5d; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#3c4b5d"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1180" height="520"/>
+  <text class="title" x="40" y="50">新人每天开发流程</text>
+
+  <rect class="step" x="50" y="105" width="180" height="90"/>
+  <text class="text" x="88" y="140">1. 更新代码</text>
+  <text class="small" x="76" y="168">repo sync</text>
+
+  <rect class="step" x="285" y="105" width="180" height="90"/>
+  <text class="text" x="323" y="140">2. 新建分支</text>
+  <text class="small" x="305" y="168">dev_lcd_xxx</text>
+
+  <rect class="step" x="520" y="105" width="180" height="90"/>
+  <text class="text" x="558" y="140">3. 修改代码</text>
+  <text class="small" x="548" y="168">只改负责模块</text>
+
+  <rect class="test" x="755" y="105" width="180" height="90"/>
+  <text class="text" x="793" y="140">4. 编译测试</text>
+  <text class="small" x="778" y="168">make / 刷机验证</text>
+
+  <rect class="step" x="990" y="105" width="150" height="90"/>
+  <text class="text" x="1014" y="140">5. 提交</text>
+  <text class="small" x="1010" y="168">commit / push</text>
+
+  <rect class="warn" x="285" y="300" width="235" height="95"/>
+  <text class="text" x="334" y="336">6. 创建 PR</text>
+  <text class="small" x="318" y="365">写清楚改了什么</text>
+
+  <rect class="warn" x="635" y="300" width="235" height="95"/>
+  <text class="text" x="696" y="336">7. 负责人合并</text>
+  <text class="small" x="676" y="365">合并到 dev / factory</text>
+
+  <path class="arrow" d="M230 150 L285 150"/>
+  <path class="arrow" d="M465 150 L520 150"/>
+  <path class="arrow" d="M700 150 L755 150"/>
+  <path class="arrow" d="M935 150 L990 150"/>
+  <path class="arrow" d="M1065 195 C1065 255 520 245 430 300"/>
+  <path class="arrow" d="M520 348 L635 348"/>
+
+  <text class="small" x="64" y="465">核心规则：不要直接改 main / factory；不要 git add . 把 out 提交进去；每个固件版本必须能追到源码版本。</text>
+</svg>
