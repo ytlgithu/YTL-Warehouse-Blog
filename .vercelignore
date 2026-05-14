@@ -1,0 +1,7 @@
+uploads/
+instance/
+__pycache__/
+*.pyc
+.git/
+*.db
+*.sqlite3
