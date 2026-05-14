@@ -19,6 +19,14 @@ from models import db, User, Repo, RepoFile, Post, OperationLog, Category, Messa
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# pg8000 SSL 配置：Supabase 要求 SSL，pg8000 用 ssl_context 而非 sslmode
+if 'pg8000' in app.config.get('SQLALCHEMY_DATABASE_URI', ''):
+    import ssl
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'connect_args': {'ssl_context': ssl.create_default_context()}
+    }
+
 db.init_app(app)
 
 # 修复 Werkzeug 3.x 的 max_form_memory_size 限制
