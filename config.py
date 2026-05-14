@@ -14,6 +14,11 @@ class Config:
         # 使用纯 Python pg8000 驱动（避免编译依赖，Vercel 兼容）
         if '+pg8000' not in uri:
             uri = uri.replace('postgresql://', 'postgresql+pg8000://', 1)
+        # Supabase 需要 SSL 连接
+        if '?' not in uri:
+            uri += '?sslmode=require'
+        elif 'ssl' not in uri:
+            uri += '&sslmode=require'
         SQLALCHEMY_DATABASE_URI = uri
     else:
         DATA_DIR = os.path.join(BASE_DIR, 'instance')
