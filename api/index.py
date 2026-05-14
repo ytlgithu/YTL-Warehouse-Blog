@@ -6,7 +6,11 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 
 # Import the Flask app
-from app import app
+from app import app, init_db
+
+# Initialize database on startup (for Vercel serverless)
+with app.app_context():
+    init_db()
 
 # Vercel requires ASGI or WSGI via their adapter
 # For @vercel/python builder, export the WSGI app
